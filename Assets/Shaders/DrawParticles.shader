@@ -1,4 +1,4 @@
-Shader "UniverseRendering/Particles"
+Shader "UniverseSimulation/DrawParticles"
 {
     Properties
     {

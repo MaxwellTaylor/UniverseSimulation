@@ -4,17 +4,20 @@ using UnityEngine.Rendering;
 using UnityEngine;
 using System;
 
-public class UniverseActor : MonoBehaviour
+namespace UniverseSimulation
 {
-    private enum ActorType
+    public class UniverseActor : MonoBehaviour
     {
-        Attractor,
-        Repeller,
-        LinearForce,
+        private enum ActorType
+        {
+            Attractor,
+            Repeller,
+            LinearForce,
+        }
+
+        [SerializeField] private ActorType m_ActorType = ActorType.Attractor;
+
+        [SerializeField] private float m_ActorStrength = 1f;
+
     }
-
-    [SerializeField] private ActorType m_ActorType = ActorType.Attractor;
-
-    [SerializeField] private float m_ActorStrength = 1f;
-
 }
