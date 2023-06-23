@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using UnityEngine.Rendering;
 using UnityEngine;
 using System;
@@ -115,6 +116,9 @@ namespace UniverseSimulation
         // Compute buffer for sending lines across to vertex shader
         private ComputeBuffer m_GeometryBuffer;
 
+        // Compute buffer for ActorData
+        private ComputeBuffer m_ActorBuffer;
+
         // Compute buffer for tracking vertex count on GPU
         private ComputeBuffer m_DrawCallArgsBuffer;
 
@@ -208,7 +212,10 @@ namespace UniverseSimulation
 
             var vertexCount = m_VerticesPerInstance * m_InstanceCount;
             m_GeometryBuffer = new ComputeBuffer(vertexCount, m_GeometryBufferStride, ComputeBufferType.Append);
-            m_DrawCallArgsBuffer = new ComputeBuffer(1, 16, ComputeBufferType.IndirectArguments);
+            m_DrawCallArgsBuffer = new ComputeBuffer(1, 4*4, ComputeBufferType.IndirectArguments);
+
+            m_ActorBuffer = new ComputeBuffer(UniverseActor.Limit, 7*4, ComputeBufferType.Structured);
+            UniverseActor.OnDictUpdate += OnUniverseActorUpdate;
         }
 
         private void SetupShaderProperties()
@@ -217,10 +224,13 @@ namespace UniverseSimulation
             m_ComputeShader.SetFloat("_MaxMass", (float)m_MaxMass);
             m_ComputeShader.SetFloat("_DistanceSoftening", m_DistanceSoftening);
             m_ComputeShader.SetFloat("_DistanceCoeff", m_DistanceCoeff);
-            m_ComputeShader.SetInt("_InstanceCount", m_InstanceCount);        
+
+            m_ComputeShader.SetInt("_InstanceCount", m_InstanceCount);
+            m_ComputeShader.SetInt("_ActorCount", UniverseActor.ActorsDict.Count);
 
             m_ComputeShader.SetBuffer(m_KernelIdx, "_GeometryBuffer", m_GeometryBuffer);
             m_ComputeShader.SetBuffer(m_KernelIdx, "_DrawCallArgsBuffer", m_DrawCallArgsBuffer);
+            m_ComputeShader.SetBuffer(m_KernelIdx, "_ActorBuffer", m_ActorBuffer);
 
             m_Material.SetBuffer("_GeometryBuffer", m_GeometryBuffer);
 
@@ -258,6 +268,11 @@ namespace UniverseSimulation
             m_ComputeShader.Dispatch(m_KernelIdx, m_InstanceCount / 64, 1, 1);
         }
 
+        private void OnUniverseActorUpdate()
+        {
+            Debug.Log("Test!");
+        }
+
         private void OnPostRenderCallback(Camera cam)
         {
             if (cam != m_TargetCamera)
@@ -282,8 +297,10 @@ namespace UniverseSimulation
             m_ParticleBuffer[m_WriteIdx].Release();
             m_GeometryBuffer.Release();
             m_DrawCallArgsBuffer.Release();
+            m_ActorBuffer.Release();
 
             Camera.onPostRender -= OnPostRenderCallback;
+            UniverseActor.OnDictUpdate -= OnUniverseActorUpdate;
         }
 
     #if UNITY_EDITOR

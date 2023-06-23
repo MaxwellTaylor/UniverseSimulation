@@ -9,6 +9,7 @@
 
 float4x4 _VPMatrix;
 uint _InstanceCount;
+uint _ActorCount;
 
 float _DistanceSoftening;
 float _DistanceCoeff;
@@ -42,6 +43,13 @@ struct ParticleData
     float Entropy;
 };
 
+struct ActorData
+{
+    float3 Position;
+    float3 Force;
+    float Mass;
+};
+
 struct DrawCallArgs
 {
     uint VerticesPerInstance;
@@ -51,6 +59,7 @@ struct DrawCallArgs
 };
 
 StructuredBuffer<ParticleData> _ParticleBufferRead;
+StructuredBuffer<ActorData> _ActorBuffer;
 
 RWStructuredBuffer<ParticleData> _ParticleBufferWrite;
 RWStructuredBuffer<DrawCallArgs> _DrawCallArgsBuffer;

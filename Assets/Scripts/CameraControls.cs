@@ -2,51 +2,54 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-[RequireComponent(typeof(Camera))]
-public class CameraControls : MonoBehaviour
+namespace UniverseSimulation
 {
-    private Camera m_Camera;
-    private float m_ZoomAmount = 0f;
-    private Quaternion m_RotationAmount;
-    private Quaternion m_AutoRotationAmount;
-
-    [SerializeField] private bool m_AutoOrbit = true;
-    [SerializeField] private float m_ZoomSpeed = 1f;
-    [SerializeField] private float m_OrbitSpeed = 1f;
-    [SerializeField] private float m_AutoOrbitSpeed = 1f;
-
-    private void Start()
+    [RequireComponent(typeof(Camera))]
+    public class CameraControls : MonoBehaviour
     {
-        m_Camera = GetComponent<Camera>();
+        private Camera m_Camera;
+        private float m_ZoomAmount = 0f;
+        private Quaternion m_RotationAmount;
+        private Quaternion m_AutoRotationAmount;
 
-        if (m_AutoOrbit)
-            m_AutoRotationAmount = Quaternion.Euler(0f, -m_AutoOrbitSpeed * Time.deltaTime, 0f);
-    }
+        [SerializeField] private bool m_AutoOrbit = true;
+        [SerializeField] private float m_ZoomSpeed = 1f;
+        [SerializeField] private float m_OrbitSpeed = 1f;
+        [SerializeField] private float m_AutoOrbitSpeed = 1f;
 
-    private void Update()
-    {
-        Cursor.lockState = CursorLockMode.Locked;
+        private void Start()
+        {
+            m_Camera = GetComponent<Camera>();
 
-        if (Input.GetKey(KeyCode.W))
-            m_ZoomAmount += m_ZoomSpeed * Time.deltaTime;
+            if (m_AutoOrbit)
+                m_AutoRotationAmount = Quaternion.Euler(0f, -m_AutoOrbitSpeed * Time.deltaTime, 0f);
+        }
 
-        else if (Input.GetKey(KeyCode.S))
-            m_ZoomAmount += -m_ZoomSpeed * Time.deltaTime;
+        private void Update()
+        {
+            Cursor.lockState = CursorLockMode.Locked;
 
-        else
-            m_ZoomAmount = 0f;
+            if (Input.GetKey(KeyCode.W))
+                m_ZoomAmount += m_ZoomSpeed * Time.deltaTime;
 
-        transform.localPosition = new Vector3(transform.localPosition.x, transform.localPosition.y, transform.localPosition.z + m_ZoomAmount);
+            else if (Input.GetKey(KeyCode.S))
+                m_ZoomAmount += -m_ZoomSpeed * Time.deltaTime;
 
-        if (Input.GetKey(KeyCode.A))
-            m_RotationAmount = Quaternion.Euler(0f, m_OrbitSpeed * Time.deltaTime, 0f);
+            else
+                m_ZoomAmount = 0f;
 
-        else if (Input.GetKey(KeyCode.D))
-            m_RotationAmount = Quaternion.Euler(0f, -m_OrbitSpeed * Time.deltaTime, 0f);
+            transform.localPosition = new Vector3(transform.localPosition.x, transform.localPosition.y, transform.localPosition.z + m_ZoomAmount);
 
-        else
-            m_RotationAmount = Quaternion.Euler(0f, 0f, 0f);
+            if (Input.GetKey(KeyCode.A))
+                m_RotationAmount = Quaternion.Euler(0f, m_OrbitSpeed * Time.deltaTime, 0f);
 
-        transform.parent.transform.rotation *= m_RotationAmount * m_AutoRotationAmount;
+            else if (Input.GetKey(KeyCode.D))
+                m_RotationAmount = Quaternion.Euler(0f, -m_OrbitSpeed * Time.deltaTime, 0f);
+
+            else
+                m_RotationAmount = Quaternion.Euler(0f, 0f, 0f);
+
+            transform.parent.transform.rotation *= m_RotationAmount * m_AutoRotationAmount;
+        }
     }
 }
