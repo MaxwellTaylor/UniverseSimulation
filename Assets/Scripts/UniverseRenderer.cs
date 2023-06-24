@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine.Rendering;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine;
 using System;
 
@@ -74,16 +75,16 @@ namespace UniverseSimulation
         [SerializeField] private double m_InitialSimulationTwistVelocity = 1e2;
 
         // The probability distribution of particle mass
-        [SerializeField]private float m_MassDistributionExp = 1;
+        [SerializeField]private float m_MassDistributionExp = 1f;
 
         // The probability distribution of particle mass
-        [SerializeField]private float m_VelocityDistributionExp = 1;
+        [SerializeField]private float m_VelocityDistributionExp = 1f;
 
         // Coefficient to apply to distance
-        [SerializeField] private float m_DistanceCoeff = 1;
+        [SerializeField] private float m_DistanceCoeff = 1f;
 
         // Distance softening
-        [SerializeField][Range(0, 1)] private float m_DistanceSoftening = 1;
+        [SerializeField][Range(0f, 1f)] private float m_DistanceSoftening = 1f;
 
 
         [Header("Rendering")]
@@ -103,6 +104,10 @@ namespace UniverseSimulation
 
         // The material for rendering particles
         [SerializeField] private Material m_Material;
+
+
+        // Whether the renderer is initialised
+        private bool m_IsInitialised = false;
 
         // Index used for ping pong'ing between buffers
         private int m_ReadIdx = 0;
@@ -134,6 +139,9 @@ namespace UniverseSimulation
         // Total number of particles in simulation
         private int m_InstanceCount;
 
+        // ParticleData asynchronously read back from GPU
+        private static Unity.Collections.NativeArray<ParticleData> s_ParticleDataReadback;
+
 
         private void Start()
         {
@@ -159,8 +167,14 @@ namespace UniverseSimulation
             ScaleParameters();
             SetupBuffers();
             SetupShaderProperties();
+            m_IsInitialised = true;
 
             Camera.onPostRender += OnPostRenderCallback;
+
+            UniverseActor.Delegate_OnDictUpdate += UpdateActorBuffer;
+            UpdateActorBuffer();
+
+            AsyncGPUReadback.Request(m_ParticleBuffer[m_ReadIdx], OnAsyncGPUReadback);
         }
 
         private void OnDrawGizmosSelected()
@@ -213,10 +227,7 @@ namespace UniverseSimulation
             var vertexCount = m_VerticesPerInstance * m_InstanceCount;
             m_GeometryBuffer = new ComputeBuffer(vertexCount, m_GeometryBufferStride, ComputeBufferType.Append);
             m_DrawCallArgsBuffer = new ComputeBuffer(1, 4*4, ComputeBufferType.IndirectArguments);
-
             m_ActorBuffer = new ComputeBuffer(UniverseActor.Limit, 7*4, ComputeBufferType.Structured);
-            UniverseActor.Delegate_OnDictUpdate += UpdateActorBuffer;
-            UpdateActorBuffer();
         }
 
         private void SetupShaderProperties()
@@ -246,6 +257,9 @@ namespace UniverseSimulation
 
         private void Update()
         {
+            if (!m_IsInitialised)
+                return;
+                
             // 0: VerticesPerInstance
             // 1: InstanceCount
             // 2: StartVertexLocation
@@ -277,6 +291,36 @@ namespace UniverseSimulation
             m_ActorBuffer.SetData(actors);
         }
 
+        private void OnAsyncGPUReadback(AsyncGPUReadbackRequest request)
+        {
+            if (!m_IsInitialised)
+                return;
+
+            if (request.hasError)
+            {
+                Debug.LogWarning("GPU readback failed!");
+                return;
+            }
+
+            s_ParticleDataReadback = request.GetData<ParticleData>();
+
+            const float samplePerc = 0.1f;
+            var length = (int)(s_ParticleDataReadback.Length * samplePerc);
+            var centre = Vector3.zero;
+            var sample = 0;
+
+            for (var i = 0; i < length; i++)
+            {
+                sample = (int)UnityEngine.Random.Range(0, s_ParticleDataReadback.Length - 1);
+                centre += s_ParticleDataReadback[sample].Position * (1f / length);
+            }
+
+            CameraController.Push(centre);
+
+            // Set up next request
+            AsyncGPUReadback.Request(m_ParticleBuffer[m_ReadIdx], OnAsyncGPUReadback);
+        }
+
         private void OnPostRenderCallback(Camera cam)
         {
             if (cam != m_TargetCamera)
@@ -297,6 +341,8 @@ namespace UniverseSimulation
 
         private void OnDestroy()
         {
+            m_IsInitialised = false;
+
             m_ParticleBuffer[m_ReadIdx].Release();
             m_ParticleBuffer[m_WriteIdx].Release();
             m_GeometryBuffer.Release();

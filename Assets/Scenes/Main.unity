@@ -254,7 +254,7 @@ MonoBehaviour:
   m_MinMass: 8
   m_MaxMass: 10
   m_InitialSimulationScale: 0.1
-  m_InitialSimulationLinearVelocity: 20
+  m_InitialSimulationLinearVelocity: 10
   m_InitialSimulationTwistVelocity: 40
   m_MassDistributionExp: 1.5
   m_VelocityDistributionExp: 0.01
@@ -383,9 +383,9 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 963194228}
+  - component: {fileID: 963194232}
   - component: {fileID: 963194227}
   - component: {fileID: 963194230}
-  - component: {fileID: 963194232}
   - component: {fileID: 963194229}
   m_Layer: 0
   m_Name: Main Camera
@@ -445,7 +445,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -50}
+  m_LocalPosition: {x: 0, y: 50, z: -300}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -541,10 +541,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 84c944132a1fa84c4b8c7efc2bc31ada, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_AutoOrbit: 1
-  m_ZoomSpeed: 5
-  m_OrbitSpeed: 10
-  m_AutoOrbitSpeed: 20
+  m_ShouldAutoOrbit: 1
+  m_AutoOrbitSpeed: 10
+  m_ZoomSpeed: 10
+  m_AutoOrbitTransform: {fileID: 1134658759}
+  m_LookAtSmoothing: 0.995
 --- !u!1 &1134658757
 GameObject:
   m_ObjectHideFlags: 0
