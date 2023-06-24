@@ -7,106 +7,111 @@ namespace UniverseSimulation
     [RequireComponent(typeof(Camera))]
     public class CameraController : MonoBehaviour
     {
-        private const int k_QueueLimit = 32;
+        private const int k_QueueLimit = 8;
 
 
-        [SerializeField] private bool m_ShouldAutoOrbit = true;
-        [SerializeField] private float m_AutoOrbitSpeed = 10f;
         [SerializeField] private float m_ZoomSpeed = 10f;
-        [SerializeField] private Transform m_AutoOrbitTransform;
-        [SerializeField][Range(0.9f, 1f)] private float m_LookAtSmoothing = 0.995f;
+        [SerializeField] private float m_LookAtSpeed = 1f;
+        [SerializeField] private float m_MoveSpeed = 1f;
 
+        
+        private GameObject m_Pivot;
+        private float m_InitialZoom;
 
-        private Quaternion m_AutoRotationAmount = Quaternion.identity;
 
         // A queue containing the point at the centre of all particles
         private static Queue<Vector3> s_LookAtQueue = new Queue<Vector3>();
 
         // A queue containing the average distance of particles from camera centre
-        private static Queue<float> s_DistToCameraCentreQueue = new Queue<float>();
+        private static Queue<float> s_AreaQueue = new Queue<float>();
 
-        private static Vector3 s_WorkingLookAtPosition;
-        private static float s_WorkingZoomAmount;
-        private static Vector3 s_WorkingPosition;
-        private static Quaternion s_WorkingLookAtRotation;
-        private static float s_PushTime = 0f;
-        private static float s_PushTimePrev = 0f;
-        private static float s_PushTimeDelta = 0f;
 
+        private static Vector3 s_LookAtPosition = Vector3.zero;
+        private static float s_Area = 0f;
+        
 
         private void Start()
         {
             Cursor.lockState = CursorLockMode.Locked;
 
-            if (m_ShouldAutoOrbit)
-                m_AutoRotationAmount = Quaternion.Euler(0f, -m_AutoOrbitSpeed * Time.deltaTime, 0f);
+            m_Pivot = new GameObject();
+            m_Pivot.name = "Camera Pivot";
+            m_Pivot.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+
+            transform.SetParent(m_Pivot.transform);
+            m_InitialZoom = transform.localPosition.z;
         }
 
-        private void UpdateZoom()
+        private void UpdatePositionAndZoom()
         {
-            if (s_DistToCameraCentreQueue.Count == 0)
-                return;
+            // Set pivot position
+            var toPos = Vector3.Normalize(s_LookAtPosition - transform.position);
+            toPos *= m_MoveSpeed * Time.deltaTime;
+            //m_Pivot.transform.position += toPos;
 
-            // Average queue
-            s_WorkingZoomAmount = 0f;
-            foreach (var dist in s_DistToCameraCentreQueue)
-                s_WorkingZoomAmount += dist;
+            // Deduct an amount to invert behaviour for small particle clouds
+            var zoom = (s_Area - 0.05f) <= 0f ? -1f : 1f;
 
-            s_WorkingZoomAmount /= s_DistToCameraCentreQueue.Count;
+            zoom *= m_ZoomSpeed * Time.deltaTime;
+            var position = transform.localPosition;
 
-            // Deduct an amount such that zoom behaviour is inverted when particles are too close to the centre
-            s_WorkingZoomAmount -= 0.75f;
-            s_WorkingZoomAmount = Mathf.SmoothStep(-5, 5, s_WorkingZoomAmount);
-
-            s_WorkingZoomAmount *= m_ZoomSpeed * Time.deltaTime;
-            s_WorkingPosition = transform.localPosition;
-            s_WorkingPosition.z -= s_WorkingZoomAmount;
-            transform.localPosition = s_WorkingPosition;
-        }
-
-        private void UpdateOrbit()
-        {
-            m_AutoOrbitTransform.rotation *= m_AutoRotationAmount;
+            position.z = position.z - zoom;
+            transform.localPosition = position;
         }
 
         private void UpdateLookAt()
         {
-            if (s_LookAtQueue.Count == 0)
-                return;
+            var toParticles = Vector3.Normalize(s_LookAtPosition - transform.position);
+            var lookAtRotation = Quaternion.identity;
 
-            // Average queue
-            s_WorkingLookAtPosition = Vector3.zero;
-            foreach (var position in s_LookAtQueue)
-                s_WorkingLookAtPosition += position;
+            if (!s_LookAtPosition.Equals(Vector3.zero))
+                lookAtRotation = Quaternion.FromToRotation(transform.forward, toParticles);
 
-            s_WorkingLookAtPosition /= s_LookAtQueue.Count;
-            s_WorkingLookAtRotation = Quaternion.LookRotation(s_WorkingLookAtPosition, Vector3.up);
+            // Normalise to unit value
+            lookAtRotation = Quaternion.Normalize(lookAtRotation);
 
-            var alpha = (Time.time - s_PushTime) / Mathf.Max(s_PushTimeDelta, float.MinValue);
-            transform.rotation = Quaternion.Lerp(transform.rotation, s_WorkingLookAtRotation, alpha * (1f - m_LookAtSmoothing));
+            // Linearly map Quaternion magnitude to m_LookAtSpeed and deltaTime
+            // This can be thought of as scaling
+            lookAtRotation = Quaternion.Lerp(Quaternion.identity, lookAtRotation, m_LookAtSpeed * Time.deltaTime);
+            transform.rotation *= lookAtRotation;
         }
 
         private void Update()
         {
-            UpdateZoom();
-            UpdateOrbit();
-            UpdateLookAt();
+            UpdatePositionAndZoom();
+            //UpdateLookAt();
         }
 
-        public static void Push(Vector3 lookAtPosition, float distToCameraCentre)
+        public static void Push(Vector3 lookAtPosition, float area)
         {
             s_LookAtQueue.Enqueue(lookAtPosition);
-            s_DistToCameraCentreQueue.Enqueue(distToCameraCentre);
+            s_AreaQueue.Enqueue(area);
 
             if (s_LookAtQueue.Count > k_QueueLimit)
                 s_LookAtQueue.Dequeue();
 
-            if (s_DistToCameraCentreQueue.Count > k_QueueLimit)
-                s_DistToCameraCentreQueue.Dequeue();
+            if (s_AreaQueue.Count > k_QueueLimit)
+                s_AreaQueue.Dequeue();
 
-            s_PushTimePrev = s_PushTime;
-            s_PushTime = Time.time;
-            s_PushTimeDelta = s_PushTime - s_PushTimePrev;
+            if (s_LookAtQueue.Count > 0)
+            {
+                // Average queue
+                s_LookAtPosition = Vector3.zero;
+                foreach (var position in s_LookAtQueue)
+                    s_LookAtPosition += position;
+
+                s_LookAtPosition /= s_LookAtQueue.Count;
+            }
+
+            if (s_AreaQueue.Count > 0)
+            {
+                // Average queue
+                s_Area = 0f;
+                foreach (var dist in s_AreaQueue)
+                    s_Area += dist;
+
+                s_Area /= s_AreaQueue.Count;
+            }
         }
     }
 }

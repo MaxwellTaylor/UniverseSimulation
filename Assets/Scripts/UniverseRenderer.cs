@@ -315,8 +315,7 @@ namespace UniverseSimulation
             var sample = 0;
 
             var mat = m_TargetCamera.projectionMatrix * m_TargetCamera.worldToCameraMatrix;
-            var toCentre = Vector2.zero;
-            var distToCameraCentre = 0f;
+            var rectCS = new Rect(0f, 0f, 0f, 0f);
 
             for (var i = 0; i < length; i++)
             {
@@ -324,16 +323,30 @@ namespace UniverseSimulation
                 sample = (int)UnityEngine.Random.Range(0, s_ParticleDataReadback.Length - 1);
                 centreWS += s_ParticleDataReadback[sample].Position * (1f / length);
 
+    #if UNITY_EDITOR
+                Debug.DrawRay(s_ParticleDataReadback[sample].Position, Vector3.Normalize(-s_ParticleDataReadback[sample].Position));
+    #endif
+
                 // Calculate whether particle cloud is too big or small in frame
                 // XY values > 1 || < -1 imply that a particle is outside the view frustrum
                 centreCS = mat.MultiplyPoint(s_ParticleDataReadback[sample].Position);
 
-                toCentre.x = centreCS.x;
-                toCentre.y = centreCS.y;
-                distToCameraCentre += toCentre.magnitude;
+                // Construct a rect that describes the bounds of the particle cloud in clipspace
+                if (centreCS.x < rectCS.x)
+                    rectCS.x = centreCS.x;
+
+                if (centreCS.y < rectCS.y)
+                    rectCS.y = centreCS.y;
+
+                if (centreCS.x > rectCS.x + rectCS.width)
+                    rectCS.width = centreCS.x - rectCS.x;
+
+                if (centreCS.y > rectCS.y + rectCS.height)
+                    rectCS.height = centreCS.y - rectCS.y;
             }
 
-            CameraController.Push(centreWS, distToCameraCentre / (float)length);
+            var particleAreaCS = rectCS.width * rectCS.height;
+            CameraController.Push(centreWS, particleAreaCS);
 
             // Set up next request
             AsyncGPUReadback.Request(m_ParticleBuffer[m_ReadIdx], OnAsyncGPUReadback);
