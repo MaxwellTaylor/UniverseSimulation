@@ -69,6 +69,61 @@ groupshared ParticleData _SharedData[SHARED_MEMORY_SIZE];
 
 #include "ComputeHelperFunctions.hlsl"
 
+
+void ApplyForces(Input input, ParticleData data, uint idx)
+{
+    #define N _InstanceCount / THREAD_DIM.y
+
+    uint start = N * input.ThreadID.y;
+    uint finish = start + N;
+    uint tile = start / N;
+
+    uint x;
+    uint idxRead;
+    uint idxShared;
+
+    float3 force = float3(0.0, 0.0, 0.0);
+
+    //[unroll(N / THREAD_DIM.x)]
+    for (uint i = start; i < finish; i += THREAD_DIM.x, tile++) 
+    {
+        x = input.GroupID.x + tile;
+
+        idxShared = input.ThreadID.x + THREAD_DIM.x * input.ThreadID.y;
+        idxRead = ((x) < GROUP_DIM.x) ? (x) : (x - GROUP_DIM.x)  * THREAD_DIM.x + input.ThreadID.x;
+
+        _SharedData[idxShared] = _ParticleBufferRead[idxRead];
+        GroupMemoryBarrierWithGroupSync();
+
+        [unroll(THREAD_DIM.x)]
+        for (uint j = 0; j < THREAD_DIM.x; j++) 
+        {
+            idxShared = j + THREAD_DIM.x * input.ThreadID.y;
+            CalcGravitation(data, _SharedData[idxShared], /*inout*/ force);
+        }
+
+        GroupMemoryBarrierWithGroupSync();
+    }
+
+    ParticleData actor;
+    for (uint k = 0; k < _ActorCount; k++)
+    {
+        actor = (ParticleData)0;
+        actor.Position = _ActorBuffer[k].Position;
+        actor.Mass = _ActorBuffer[k].Mass;
+
+        CalcGravitation(data, actor, /*inout*/ force);
+        CalcInputForce(data, _ActorBuffer[k], /*inout*/ force);
+    }
+
+    float3 acceleration = (force / data.Mass) * _TimeStep;
+
+    data.Velocity += acceleration;
+    data.Position += data.Velocity;
+    
+    _ParticleBufferWrite[idx] = data;
+}
+
 void BuildGeometry(ParticleData data)
 {
     // Avoid sending particles to vertex shader if they are outside camera frustrum
@@ -86,12 +141,6 @@ void BuildGeometry(ParticleData data)
 
     _GeometryBuffer.Append(geo);
     InterlockedAdd(_DrawCallArgsBuffer[0].InstanceCount, 1);
-}
-
-void ApplyForces(Input input, ParticleData data, uint idx)
-{
-    CalcForces(input, /*inout*/ data);
-    _ParticleBufferWrite[idx] = data;
 }
 
 [numthreads(THREAD_COUNT, 1, 1)]

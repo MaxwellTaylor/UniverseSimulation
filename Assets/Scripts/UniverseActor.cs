@@ -6,8 +6,6 @@ using System;
 
 namespace UniverseSimulation
 {
-    public delegate void DictUpdated();
-
     public class UniverseActor : MonoBehaviour
     {
         public enum ActorType
@@ -51,7 +49,14 @@ namespace UniverseSimulation
             set { }
         }
 
-        public static DictUpdated OnDictUpdate;
+        public delegate void OnDictUpdate();
+        public static OnDictUpdate Delegate_OnDictUpdate = null;
+
+        private void OnValidate()
+        {
+            if (Delegate_OnDictUpdate != null)
+                Delegate_OnDictUpdate.Invoke();
+        }
 
         private void OnEnable()
         {
@@ -75,7 +80,8 @@ namespace UniverseSimulation
                 else
                     m_ActorsDict.Add(this, data);
 
-                OnDictUpdate();
+                if (Delegate_OnDictUpdate != null)
+                    Delegate_OnDictUpdate.Invoke();
             }
         }
 
@@ -83,6 +89,27 @@ namespace UniverseSimulation
         {
             if (m_ActorsDict.ContainsKey(this))
                 m_ActorsDict.Remove(this);
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            Gizmos.color = new Color(0f, 1f, 0f, 0.5f);
+
+            switch(m_ActorType)
+            {
+                case ActorType.Attractor:
+                    Gizmos.DrawSphere(transform.position, 25f);
+                    break;
+
+                case ActorType.Repeller:
+                    Gizmos.DrawSphere(transform.position, 25f);
+                    break;
+
+                case ActorType.LinearForce:
+                    Gizmos.DrawSphere(transform.position, 5f);
+                    Gizmos.DrawRay(transform.position, transform.forward * 50f);
+                    break;
+            }
         }
     }
 }

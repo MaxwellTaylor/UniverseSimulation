@@ -215,7 +215,8 @@ namespace UniverseSimulation
             m_DrawCallArgsBuffer = new ComputeBuffer(1, 4*4, ComputeBufferType.IndirectArguments);
 
             m_ActorBuffer = new ComputeBuffer(UniverseActor.Limit, 7*4, ComputeBufferType.Structured);
-            UniverseActor.OnDictUpdate += OnUniverseActorUpdate;
+            UniverseActor.Delegate_OnDictUpdate += UpdateActorBuffer;
+            UpdateActorBuffer();
         }
 
         private void SetupShaderProperties()
@@ -226,7 +227,6 @@ namespace UniverseSimulation
             m_ComputeShader.SetFloat("_DistanceCoeff", m_DistanceCoeff);
 
             m_ComputeShader.SetInt("_InstanceCount", m_InstanceCount);
-            m_ComputeShader.SetInt("_ActorCount", UniverseActor.ActorsDict.Count);
 
             m_ComputeShader.SetBuffer(m_KernelIdx, "_GeometryBuffer", m_GeometryBuffer);
             m_ComputeShader.SetBuffer(m_KernelIdx, "_DrawCallArgsBuffer", m_DrawCallArgsBuffer);
@@ -268,9 +268,13 @@ namespace UniverseSimulation
             m_ComputeShader.Dispatch(m_KernelIdx, m_InstanceCount / 64, 1, 1);
         }
 
-        private void OnUniverseActorUpdate()
+        private void UpdateActorBuffer()
         {
-            Debug.Log("Test!");
+            m_ComputeShader.SetInt("_ActorCount", UniverseActor.ActorsDict.Count);
+
+            var actors = new UniverseActor.ActorData[UniverseActor.Limit];
+            UniverseActor.ActorsDict.Values.CopyTo(actors, 0);
+            m_ActorBuffer.SetData(actors);
         }
 
         private void OnPostRenderCallback(Camera cam)
@@ -300,7 +304,7 @@ namespace UniverseSimulation
             m_ActorBuffer.Release();
 
             Camera.onPostRender -= OnPostRenderCallback;
-            UniverseActor.OnDictUpdate -= OnUniverseActorUpdate;
+            UniverseActor.Delegate_OnDictUpdate -= UpdateActorBuffer;
         }
 
     #if UNITY_EDITOR
