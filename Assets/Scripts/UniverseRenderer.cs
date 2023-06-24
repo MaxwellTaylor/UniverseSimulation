@@ -97,6 +97,12 @@ namespace UniverseSimulation
         // Length of particle trails
         [SerializeField] private float m_TrailLength = 0.1f;
 
+        // Colour variant for particles
+        [SerializeField][ColorUsage(false, true)] private Color m_ColourA = Color.white;
+
+        // Colour variant for particles
+        [SerializeField][ColorUsage(false, true)] private Color m_ColourB = Color.white;
+
 
         [Header("References")]
         // The compute shader for calculating particle interactions
@@ -222,7 +228,7 @@ namespace UniverseSimulation
                 particles[i].Position = transform.position + direction * (float)m_InitialSimulationScale;
                 particles[i].Velocity = linearVelocity * (float)m_InitialSimulationLinearVelocity + twistVelocity * (float)m_InitialSimulationTwistVelocity;
                 particles[i].Mass = Mathf.Lerp((float)m_MinMass, (float)m_MaxMass, massAlpha);
-                particles[i].Entropy = UnityEngine.Random.Range(0f, 1f) * (1f - linearVelocity.magnitude);
+                particles[i].Entropy = UnityEngine.Random.Range(0f, 1f);
             }
 
             m_ParticleBuffer[m_ReadIdx].SetData(particles);
@@ -240,6 +246,9 @@ namespace UniverseSimulation
             m_ComputeShader.SetFloat("_MaxMass", (float)m_MaxMass);
             m_ComputeShader.SetFloat("_DistanceSoftening", m_DistanceSoftening);
             m_ComputeShader.SetFloat("_DistanceCoeff", m_DistanceCoeff);
+
+            m_ComputeShader.SetVector("_ColourA", m_ColourA);
+            m_ComputeShader.SetVector("_ColourB", m_ColourB);
 
             m_ComputeShader.SetInt("_InstanceCount", m_InstanceCount);
 

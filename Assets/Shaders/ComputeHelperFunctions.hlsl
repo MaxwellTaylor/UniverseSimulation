@@ -64,10 +64,7 @@
 
     float3 Colourise(ParticleData data)
     {
-        #define COLOUR_A float3(0.176, 0.733, 0.921)
-        #define COLOUR_B float3(1.2, 0.6, 0.1)
-
-        float3 base = lerp(COLOUR_A, COLOUR_B, data.Entropy);
+        float3 base = lerp(_ColourA.rgb, _ColourB.rgb, data.Entropy);
         return base;
     }
 

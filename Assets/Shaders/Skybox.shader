@@ -1,5 +1,5 @@
 
-Shader "UniverseRendering/Skybox"
+Shader "UniverseSimulation/Skybox"
 {
     Properties
     {

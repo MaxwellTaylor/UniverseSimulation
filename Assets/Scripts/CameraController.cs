@@ -79,7 +79,7 @@ namespace UniverseSimulation
         private void Update()
         {
             UpdatePositionAndZoom();
-            //UpdateLookAt();
+            UpdateLookAt();
         }
 
         public static void Push(Vector3 lookAtPosition, float area)

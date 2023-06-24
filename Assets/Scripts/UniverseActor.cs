@@ -23,7 +23,7 @@ namespace UniverseSimulation
         }
 
         // A hard limit on the number of supported UniverseActors
-        private static int k_ActorCountLimit = 16;
+        private static int k_ActorCountLimit = 32;
 
         // The behaviour type of the actor
         [SerializeField] private ActorType m_ActorType = ActorType.Attractor;

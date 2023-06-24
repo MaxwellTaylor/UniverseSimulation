@@ -11,6 +11,9 @@ float4x4 _VPMatrix;
 uint _InstanceCount;
 uint _ActorCount;
 
+float4 _ColourA;
+float4 _ColourB;
+
 float _DistanceSoftening;
 float _DistanceCoeff;
 float _TrailLength;
