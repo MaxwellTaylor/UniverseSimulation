@@ -89,7 +89,7 @@ Material:
     - _Cutoff: 0.5
     - _DetailNormalMapScale: 1
     - _DstBlend: 0
-    - _Exposure: 0.15
+    - _Exposure: 0.1
     - _Falloff: 0.55
     - _GlossMapScale: 1
     - _Glossiness: 0.5
@@ -115,8 +115,8 @@ Material:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _ColourInner: {r: 0.15686275, g: 0.15886435, b: 0.12941177, a: 1}
     - _ColourOuter: {r: 0, g: 0, b: 0, a: 1}
-    - _ColourXNeg: {r: 0.019607844, g: 0, b: 0, a: 1}
-    - _ColourXPos: {r: 0.023529412, g: 0.003921569, b: 0, a: 1}
+    - _ColourXNeg: {r: 0.16037738, g: 0.059763268, b: 0.09425956, a: 1}
+    - _ColourXPos: {r: 0.24528301, g: 0.14169651, b: 0.1214845, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _GroundColor: {r: 0.5373006, g: 0.5754717, b: 0.4533197, a: 1}
     - _Lower: {r: 0.5, g: 0.5, b: 0.5, a: 1}

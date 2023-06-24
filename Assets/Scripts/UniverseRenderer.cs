@@ -92,7 +92,7 @@ namespace UniverseSimulation
         [SerializeField] private RenderTopology m_RenderTopology;
 
         // Camera to render from
-        [SerializeField] private Camera m_TargetCamera;
+        [SerializeField] private CameraController m_TargetCameraController;
 
         // Length of particle trails
         [SerializeField] private float m_TrailLength = 0.1f;
@@ -105,6 +105,9 @@ namespace UniverseSimulation
         // The material for rendering particles
         [SerializeField] private Material m_Material;
 
+
+        // The target Camera, established by m_TargetCameraController
+        private Camera m_TargetCamera;
 
         // Whether the renderer is initialised
         private bool m_IsInitialised = false;
@@ -145,6 +148,7 @@ namespace UniverseSimulation
 
         private void Start()
         {
+            m_TargetCamera = m_TargetCameraController.GetComponent<Camera>();
             m_InstanceCount = (int)m_ParticleCount;
 
             switch(m_RenderTopology)
@@ -306,16 +310,30 @@ namespace UniverseSimulation
 
             const float samplePerc = 0.1f;
             var length = (int)(s_ParticleDataReadback.Length * samplePerc);
-            var centre = Vector3.zero;
+            var centreWS = Vector3.zero;
+            var centreCS = Vector3.zero;
             var sample = 0;
+
+            var mat = m_TargetCamera.projectionMatrix * m_TargetCamera.worldToCameraMatrix;
+            var toCentre = Vector2.zero;
+            var distToCameraCentre = 0f;
 
             for (var i = 0; i < length; i++)
             {
+                // Calculate the average position of particles
                 sample = (int)UnityEngine.Random.Range(0, s_ParticleDataReadback.Length - 1);
-                centre += s_ParticleDataReadback[sample].Position * (1f / length);
+                centreWS += s_ParticleDataReadback[sample].Position * (1f / length);
+
+                // Calculate whether particle cloud is too big or small in frame
+                // XY values > 1 || < -1 imply that a particle is outside the view frustrum
+                centreCS = mat.MultiplyPoint(s_ParticleDataReadback[sample].Position);
+
+                toCentre.x = centreCS.x;
+                toCentre.y = centreCS.y;
+                distToCameraCentre += toCentre.magnitude;
             }
 
-            CameraController.Push(centre);
+            CameraController.Push(centreWS, distToCameraCentre / (float)length);
 
             // Set up next request
             AsyncGPUReadback.Request(m_ParticleBuffer[m_ReadIdx], OnAsyncGPUReadback);
