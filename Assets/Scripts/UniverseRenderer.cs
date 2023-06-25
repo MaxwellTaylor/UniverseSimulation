@@ -24,6 +24,12 @@ namespace UniverseSimulation
             Lines,
         }
 
+        private enum InitShape
+        {
+            Sphere,
+            AccretionDisc,
+        }
+
         private enum ParticleCount
         {
             _4096 = 4096,
@@ -64,7 +70,11 @@ namespace UniverseSimulation
 
         // Unit: Meters
         // The diameter of galaxies upon initiation
-        [SerializeField] private double m_InitialGalaxyScale = 1e6;
+        [SerializeField] private double m_InitialClusterScaleMin = 1e6;
+
+        // Unit: Meters
+        // The diameter of galaxies upon initiation
+        [SerializeField] private double m_InitialClusterScaleMax = 1e6;
 
         // Unit: Meters/second
         // The linear velocity of the universe upon initiation
@@ -74,11 +84,11 @@ namespace UniverseSimulation
         // The disc velocity of the universe upon initiation
         [SerializeField] private double m_InitialSimulationDiscVelocity = 1e2;
 
-        // Galaxy cluster count
-        [SerializeField]private int m_GalaxyCount = 4;
+        // Cluster cluster count
+        [SerializeField]private int m_ClusterCount = 4;
 
-        // Galaxy distribution radius
-        [SerializeField]private int m_GalaxyDistributionMaxRadius = 50;
+        // Cluster distribution radius
+        [SerializeField]private int m_ClusterDistributionMaxRadius = 50;
 
         // The probability distribution of particle mass
         [SerializeField]private float m_MassDistributionExp = 1f;
@@ -92,8 +102,11 @@ namespace UniverseSimulation
         // Distance softening
         [SerializeField][Range(0f, 1f)] private float m_DistanceSoftening = 1f;
 
-        // Distance softening
+        // Velocity decay
         [SerializeField] private float m_VelocityDecay = 0.1f;
+
+        // Initialisation shape
+        [SerializeField] private InitShape m_InitialisationShape = InitShape.Sphere;
 
 
         [Header("Rendering")]
@@ -217,7 +230,8 @@ namespace UniverseSimulation
 
             m_GravitationalConstant *= m_SimulationUnitScale;
 
-            m_InitialGalaxyScale *= m_SimulationUnitScale;
+            m_InitialClusterScaleMin *= m_SimulationUnitScale;
+            m_InitialClusterScaleMax *= m_SimulationUnitScale;
             m_InitialSimulationLinearVelocity *= m_SimulationUnitScale;
             m_InitialSimulationDiscVelocity *= m_SimulationUnitScale;
         }
@@ -232,31 +246,16 @@ namespace UniverseSimulation
                 new ComputeBuffer(m_InstanceCount, 32),
             };
 
-            var galaxyOrigins = new Vector3[m_GalaxyCount];
-            for (var i = 0; i < m_GalaxyCount; i++)
+            var clusterOrigins = new Vector3[m_ClusterCount];
+            for (var i = 0; i < m_ClusterCount; i++)
             {
-                galaxyOrigins[i] = UnityEngine.Random.onUnitSphere * UnityEngine.Random.Range(0f, m_GalaxyDistributionMaxRadius);
+                clusterOrigins[i] = UnityEngine.Random.onUnitSphere * UnityEngine.Random.Range(0f, m_ClusterDistributionMaxRadius);
             }
 
-            var galaxyRatio = m_GalaxyCount / (float)m_InstanceCount;
+            var clusterRatio = m_ClusterCount / (float)m_InstanceCount;
             var particles = new ParticleData[m_InstanceCount];
 
-            for (var i = 0; i < m_InstanceCount; i++)
-            {
-                var direction = UnityEngine.Random.onUnitSphere;
-                var massAlpha = Mathf.Pow(UnityEngine.Random.Range(0f, 1f), m_MassDistributionExp);
-                var velocityAlpha = Mathf.Pow(UnityEngine.Random.Range(0f, 1f), m_VelocityDistributionExp);
-
-                var linearVelocity = direction * velocityAlpha;
-                var discVelocity = Vector3.Cross(direction, Vector3.up) * velocityAlpha;
-
-                var galaxyIdx = (int)Mathf.Floor(i * galaxyRatio);
-
-                particles[i].Position = transform.position + galaxyOrigins[galaxyIdx] + direction * (float)m_InitialGalaxyScale;
-                particles[i].Velocity = linearVelocity * (float)m_InitialSimulationLinearVelocity + discVelocity * (float)m_InitialSimulationDiscVelocity;
-                particles[i].Mass = Mathf.Lerp((float)m_MinMass, (float)m_MaxMass, massAlpha);
-                particles[i].Entropy = UnityEngine.Random.Range(0f, 1f);
-            }
+            InitialiseParticles(clusterRatio, clusterOrigins, ref particles);
 
             m_ParticleBuffer[m_ReadIdx].SetData(particles);
             m_ParticleBuffer[m_WriteIdx].SetData(particles);
@@ -265,6 +264,58 @@ namespace UniverseSimulation
             m_GeometryBuffer = new ComputeBuffer(vertexCount, m_GeometryBufferStride, ComputeBufferType.Append);
             m_DrawCallArgsBuffer = new ComputeBuffer(1, 4*4, ComputeBufferType.IndirectArguments);
             m_ActorBuffer = new ComputeBuffer(UniverseActor.Limit, 7*4, ComputeBufferType.Structured);
+        }
+
+        private void InitialiseParticles(float clusterRatio, Vector3[] clusterOrigins, ref ParticleData[] particles)
+        {
+            for (var i = 0; i < m_InstanceCount; i++)
+            {
+                var clusterIdx = (int)Mathf.Floor(i * clusterRatio);
+                var massAlpha = Mathf.Pow(UnityEngine.Random.Range(0f, 1f), m_MassDistributionExp);
+                var velocityAlpha = Mathf.Pow(UnityEngine.Random.Range(0f, 1f), m_VelocityDistributionExp);
+
+                particles[i].Mass = Mathf.Lerp((float)m_MinMass, (float)m_MaxMass, massAlpha);
+                particles[i].Entropy = UnityEngine.Random.Range(0f, 1f);
+
+                Vector3 linearVelocity;
+                Vector3 discVelocity;
+                Vector3 direction;
+
+                switch(m_InitialisationShape)
+                {
+                    case InitShape.Sphere:
+                        direction = UnityEngine.Random.onUnitSphere;
+                        linearVelocity = direction * velocityAlpha;
+                        discVelocity = Vector3.Cross(direction, Vector3.up) * velocityAlpha;
+
+                        particles[i].Position =
+                            transform.position +
+                            clusterOrigins[clusterIdx] +
+                            direction * (float)m_InitialClusterScaleMax;
+
+                        particles[i].Velocity =
+                            linearVelocity * (float)m_InitialSimulationLinearVelocity +
+                            discVelocity * (float)m_InitialSimulationDiscVelocity;
+                        break;
+
+                    case InitShape.AccretionDisc:
+                        var circleDirection = UnityEngine.Random.insideUnitCircle.normalized;
+                        direction = new Vector3(circleDirection.x, 0f, circleDirection.y);
+
+                        linearVelocity = Quaternion.Euler(0f, 90f, 0f) * direction * velocityAlpha;
+                        discVelocity = Vector3.Cross(direction, Vector3.up) * velocityAlpha;
+
+                        particles[i].Position =
+                            transform.position +
+                            clusterOrigins[clusterIdx] +
+                            direction * UnityEngine.Random.Range((float)m_InitialClusterScaleMin, (float)m_InitialClusterScaleMax);
+
+                        particles[i].Velocity =
+                            linearVelocity * (float)m_InitialSimulationLinearVelocity +
+                            discVelocity * (float)m_InitialSimulationDiscVelocity;
+                        break;
+                }
+            }
         }
 
         private void SetupShaderProperties()
@@ -329,6 +380,7 @@ namespace UniverseSimulation
 
             var actors = new UniverseActor.ActorData[UniverseActor.Limit];
             UniverseActor.ActorsDict.Values.CopyTo(actors, 0);
+
             m_ActorBuffer.SetData(actors);
         }
 
@@ -361,6 +413,11 @@ namespace UniverseSimulation
 
     #if UNITY_EDITOR
                 Debug.DrawRay(s_ParticleDataReadback[sample].Position, Vector3.Normalize(-s_ParticleDataReadback[sample].Position));
+                /*
+                Debug.Log(
+                    "Position: " + s_ParticleDataReadback[sample].Position.ToString("F10") +
+                    "\t\t\t Velocity: " + s_ParticleDataReadback[sample].Velocity.ToString("F10"));
+                */
     #endif
 
                 // Calculate whether particle cloud is too big or small in frame
@@ -393,10 +450,6 @@ namespace UniverseSimulation
             if (cam != m_TargetCamera)
                 return;
 
-    #if UNITY_EDITOR
-            //DebugLog();
-    #endif
-
             m_Material.SetPass(0);
 
             if (m_RenderTopology == RenderTopology.Points)
@@ -419,19 +472,5 @@ namespace UniverseSimulation
             Camera.onPostRender -= OnPostRenderCallback;
             UniverseActor.Delegate_OnDictUpdate -= UpdateActorBuffer;
         }
-
-    #if UNITY_EDITOR
-        private void DebugLog()
-        {
-            var data = new ParticleData[m_InstanceCount];
-            m_ParticleBuffer[m_ReadIdx].GetData(data);
-
-            for (var i = 0; i < 1; i++)
-            {
-                Debug.Log("\t Position: " + data[i].Position.ToString("F10"));
-                Debug.Log("\t Velocity: " + data[i].Velocity.ToString("F10"));
-            }
-        }
-    #endif
     }
 }
