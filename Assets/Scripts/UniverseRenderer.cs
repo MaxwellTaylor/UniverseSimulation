@@ -71,8 +71,8 @@ namespace UniverseSimulation
         [SerializeField] private double m_InitialSimulationLinearVelocity = 1e2;
 
         // Unit: Meters/second
-        // The twist velocity of the universe upon initiation
-        [SerializeField] private double m_InitialSimulationTwistVelocity = 1e2;
+        // The disc velocity of the universe upon initiation
+        [SerializeField] private double m_InitialSimulationDiscVelocity = 1e2;
 
         // The probability distribution of particle mass
         [SerializeField]private float m_MassDistributionExp = 1f;
@@ -86,6 +86,9 @@ namespace UniverseSimulation
         // Distance softening
         [SerializeField][Range(0f, 1f)] private float m_DistanceSoftening = 1f;
 
+        // Distance softening
+        [SerializeField] private float m_VelocityDecay = 0.1f;
+
 
         [Header("Rendering")]
         // Whether to render points or lines
@@ -96,6 +99,9 @@ namespace UniverseSimulation
 
         // Length of particle trails
         [SerializeField] private float m_TrailLength = 0.1f;
+
+        // Proportion of particles to sample on CPU for establishing camera tracking behaviour
+        [SerializeField] private float m_SampleRatio = 0.05f;
 
         // Colour variant for particles
         [SerializeField][ColorUsage(false, true)] private Color m_ColourA = Color.white;
@@ -202,7 +208,7 @@ namespace UniverseSimulation
 
             m_InitialSimulationScale *= m_SimulationUnitScale;
             m_InitialSimulationLinearVelocity *= m_SimulationUnitScale;
-            m_InitialSimulationTwistVelocity *= m_SimulationUnitScale;
+            m_InitialSimulationDiscVelocity *= m_SimulationUnitScale;
         }
 
         private void SetupBuffers()
@@ -226,7 +232,7 @@ namespace UniverseSimulation
                 var twistVelocity = Vector3.Cross(direction, Vector3.up) * velocityAlpha;
 
                 particles[i].Position = transform.position + direction * (float)m_InitialSimulationScale;
-                particles[i].Velocity = linearVelocity * (float)m_InitialSimulationLinearVelocity + twistVelocity * (float)m_InitialSimulationTwistVelocity;
+                particles[i].Velocity = linearVelocity * (float)m_InitialSimulationLinearVelocity + twistVelocity * (float)m_InitialSimulationDiscVelocity;
                 particles[i].Mass = Mathf.Lerp((float)m_MinMass, (float)m_MaxMass, massAlpha);
                 particles[i].Entropy = UnityEngine.Random.Range(0f, 1f);
             }
@@ -246,6 +252,7 @@ namespace UniverseSimulation
             m_ComputeShader.SetFloat("_MaxMass", (float)m_MaxMass);
             m_ComputeShader.SetFloat("_DistanceSoftening", m_DistanceSoftening);
             m_ComputeShader.SetFloat("_DistanceCoeff", m_DistanceCoeff);
+            m_ComputeShader.SetFloat("_VelocityDecay", 1f - m_VelocityDecay);
 
             m_ComputeShader.SetVector("_ColourA", m_ColourA);
             m_ComputeShader.SetVector("_ColourB", m_ColourB);
@@ -317,8 +324,7 @@ namespace UniverseSimulation
 
             s_ParticleDataReadback = request.GetData<ParticleData>();
 
-            const float samplePerc = 0.1f;
-            var length = (int)(s_ParticleDataReadback.Length * samplePerc);
+            var length = (int)(s_ParticleDataReadback.Length * m_SampleRatio);
             var centreWS = Vector3.zero;
             var centreCS = Vector3.zero;
             var sample = 0;

@@ -16,6 +16,7 @@ float4 _ColourB;
 
 float _DistanceSoftening;
 float _DistanceCoeff;
+float _VelocityDecay;
 float _TrailLength;
 float _TimeStep;
 float _MaxMass;
@@ -121,7 +122,7 @@ void ApplyForces(Input input, ParticleData data, uint idx)
 
     float3 acceleration = (force / data.Mass) * _TimeStep;
 
-    data.Velocity += acceleration;
+    data.Velocity = data.Velocity * _VelocityDecay + acceleration;
     data.Position += data.Velocity;
     
     _ParticleBufferWrite[idx] = data;

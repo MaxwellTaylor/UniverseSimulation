@@ -14,36 +14,27 @@
         return direction * _G * (m1m2 / r2);
     }
 
-    float CalcDistance(float3 vec)
-    {
-        float r = length(vec);
-
-        // Direction of gravitation force
-        vec = SafeNormalise(vec, r);
-
-        // Inverse square law
-        r *= _DistanceCoeff;
-        float r2 = max(r * r, EPSILON);
-        r2 = lerp(r2, 1.0, _DistanceSoftening);
-
-        return r2;
-    }
-
     void CalcInputForce(ParticleData data, ActorData actor, inout float3 force)
     {
         float3 toActor = actor.Position - data.Position;
 
-        float r2 = CalcDistance(toActor);
-        force += Newton(actor.Force, 1.0, r2);
+        float r2 = dot(toActor, toActor) * _DistanceCoeff + EPSILON;
+        r2 = lerp(r2, r2*r2, _DistanceSoftening);
+
+        float r = sqrt(r2);
+        force += Newton(actor.Force, 1.0, r);
     }
 
     void CalcGravitation(ParticleData data, ParticleData dataOther, inout float3 force)
     {
-        float m1m2 = data.Mass * dataOther.Mass;
         float3 toOther = dataOther.Position - data.Position;
+        float m1m2 = data.Mass * dataOther.Mass;
 
-        float r2 = CalcDistance(toOther);
-        force += Newton(toOther, m1m2, r2);
+        float r2 = dot(toOther, toOther) * _DistanceCoeff + EPSILON;
+        r2 = lerp(r2, r2*r2, _DistanceSoftening);
+
+        float r = sqrt(r2);
+        force += Newton(toOther, m1m2, r);
     }
 
     float CalcLuminosity(float mass)
@@ -51,7 +42,7 @@
         // Mass–luminosity relation
         // L = m^3.5
 
-        #define LUM_EXPONENT 1.2
+        #define LUM_EXPONENT 2.0
         #define LUM_DIM 0.1
 
         float lum = saturate(mass / _MaxMass);
@@ -64,7 +55,8 @@
 
     float3 Colourise(ParticleData data)
     {
-        float3 base = lerp(_ColourA.rgb, _ColourB.rgb, data.Entropy);
+        float mass = saturate(data.Mass / _MaxMass);
+        float3 base = lerp(_ColourA.rgb, _ColourB.rgb, data.Entropy * mass);
         return base;
     }
 
@@ -84,8 +76,11 @@
         float4 position = float4(data.Position, 1.0);
         position = mul(_VPMatrix, position);
 
+        // A margin is applied to compensate for camera movement between passes
+        const float margin = 0.2;
+
         float2 screenUV = ScreenPosition(position);
-        return screenUV.x < 0.0 || screenUV.x > 1.0 || screenUV.y < 0.0 || screenUV.y > 1.0;
+        return screenUV.x < 0.0 - margin || screenUV.x > 1.0 + margin || screenUV.y < 0.0 - margin || screenUV.y > 1.0 + margin;
     }
 
 #endif // __COMPUTE_HELPER_FUNCS__

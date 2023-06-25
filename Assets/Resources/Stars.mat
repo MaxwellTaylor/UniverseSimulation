@@ -64,7 +64,7 @@ Material:
     - _DetailNormalMapScale: 1
     - _DstBlend: 0
     - _EdgeFalloff: 1
-    - _Exposure: 1
+    - _Exposure: 10
     - _Falloff: 1
     - _FogFarPlane: 1
     - _GlossMapScale: 1

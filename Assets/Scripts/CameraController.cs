@@ -7,12 +7,13 @@ namespace UniverseSimulation
     [RequireComponent(typeof(Camera))]
     public class CameraController : MonoBehaviour
     {
-        private const int k_QueueLimit = 8;
+        private const int k_QueueLimit = 32;
 
 
         [SerializeField] private float m_ZoomSpeed = 10f;
         [SerializeField] private float m_LookAtSpeed = 1f;
         [SerializeField] private float m_MoveSpeed = 1f;
+        [SerializeField] private float m_OrbitSpeed = 1f;
 
         
         private GameObject m_Pivot;
@@ -76,10 +77,16 @@ namespace UniverseSimulation
             transform.rotation *= lookAtRotation;
         }
 
+        private void UpdateOrbit()
+        {
+            m_Pivot.transform.rotation *= Quaternion.Euler(0f, m_OrbitSpeed * Time.deltaTime, 0f);
+        }
+
         private void Update()
         {
-            UpdatePositionAndZoom();
             UpdateLookAt();
+            UpdatePositionAndZoom();
+            UpdateOrbit();
         }
 
         public static void Push(Vector3 lookAtPosition, float area)
