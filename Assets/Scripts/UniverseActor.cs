@@ -28,18 +28,20 @@ namespace UniverseSimulation
         // The behaviour type of the actor
         [SerializeField] private ActorType m_ActorType = ActorType.Attractor;
 
+        // Unit: Kilograms
         // The mass of the actor; used for Attractor and Repeller types
-        [SerializeField] private float m_Mass = 1f;
+        [SerializeField] private double m_Mass = 1f;
 
         // The force of the actor; used for LinearForce type
-        [SerializeField] private float m_Force = 1f;
+        [SerializeField] private double m_Force = 1f;
 
 
-        private static Dictionary<UniverseActor, ActorData> m_ActorsDict = new Dictionary<UniverseActor, ActorData>();
+        private static double m_SimulationUnitScale;
+        private static Dictionary<UniverseActor, ActorData> s_ActorsDict = new Dictionary<UniverseActor, ActorData>();
 
         public static Dictionary<UniverseActor, ActorData> ActorsDict
         {
-            get { return m_ActorsDict; }
+            get { return s_ActorsDict; }
             set { }
         }
 
@@ -52,6 +54,11 @@ namespace UniverseSimulation
         public delegate void OnDictUpdate();
         public static OnDictUpdate Delegate_OnDictUpdate = null;
 
+        public static void SetScale(double scale)
+        {
+            m_SimulationUnitScale = scale;
+        }
+
         private void OnValidate()
         {
             if (Delegate_OnDictUpdate != null)
@@ -60,8 +67,8 @@ namespace UniverseSimulation
 
         private void OnEnable()
         {
-            var force = (m_ActorType == ActorType.LinearForce) ? transform.forward * m_Force : Vector3.zero;
-            var mass = (m_ActorType == ActorType.Attractor || m_ActorType == ActorType.Repeller) ? m_Mass : 0f;
+            var force = (m_ActorType == ActorType.LinearForce) ? transform.forward * (float)(m_Force * m_SimulationUnitScale) : Vector3.zero;
+            var mass = (m_ActorType == ActorType.Attractor || m_ActorType == ActorType.Repeller) ? (float)(m_Mass * m_SimulationUnitScale) : 0f;
 
             // Mass is inverted for Repeller type
             mass *= (m_ActorType == ActorType.Repeller) ? -1f : 1f;
@@ -73,12 +80,12 @@ namespace UniverseSimulation
                 Mass = mass,
             };
 
-            if (!m_ActorsDict.ContainsKey(this))
+            if (!s_ActorsDict.ContainsKey(this))
             {
-                if (m_ActorsDict.Count >= k_ActorCountLimit)
+                if (s_ActorsDict.Count >= k_ActorCountLimit)
                     Debug.LogWarning("UniverseActor couldn't be registered as the hard limit has been reached!", this);
                 else
-                    m_ActorsDict.Add(this, data);
+                    s_ActorsDict.Add(this, data);
 
                 if (Delegate_OnDictUpdate != null)
                     Delegate_OnDictUpdate.Invoke();
@@ -87,8 +94,8 @@ namespace UniverseSimulation
 
         private void OnDisable()
         {
-            if (m_ActorsDict.ContainsKey(this))
-                m_ActorsDict.Remove(this);
+            if (s_ActorsDict.ContainsKey(this))
+                s_ActorsDict.Remove(this);
         }
 
         private void OnDrawGizmosSelected()

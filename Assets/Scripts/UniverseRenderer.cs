@@ -164,6 +164,11 @@ namespace UniverseSimulation
         private static Unity.Collections.NativeArray<ParticleData> s_ParticleDataReadback;
 
 
+        private void Awake()
+        {
+            UniverseActor.SetScale(m_SimulationUnitScale);
+        }
+
         private void Start()
         {
             m_TargetCamera = m_TargetCameraController.GetComponent<Camera>();
