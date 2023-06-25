@@ -17,7 +17,7 @@ RenderSettings:
   m_Fog: 1
   m_FogColor: {r: 0, g: 0, b: 0, a: 1}
   m_FogMode: 3
-  m_FogDensity: 0.0003
+  m_FogDensity: 0.0002
   m_LinearFogStart: 0
   m_LinearFogEnd: 300
   m_AmbientSkyColor: {r: 0.212, g: 0.227, b: 0.259, a: 1}
@@ -206,11 +206,13 @@ MonoBehaviour:
   m_SimulationUnitScale: 1
   m_MinMass: 5
   m_MaxMass: 100
-  m_InitialSimulationScale: 0.1
-  m_InitialSimulationLinearVelocity: 10
-  m_InitialSimulationDiscVelocity: 20
-  m_MassDistributionExp: 10
-  m_VelocityDistributionExp: 0.3
+  m_InitialGalaxyScale: 0.01
+  m_InitialSimulationLinearVelocity: 0.1
+  m_InitialSimulationDiscVelocity: 100
+  m_GalaxyCount: 1
+  m_GalaxyDistributionMaxRadius: 1
+  m_MassDistributionExp: 1
+  m_VelocityDistributionExp: 0.1
   m_DistanceCoeff: 0.5
   m_DistanceSoftening: 0.1
   m_VelocityDecay: 0.0001
@@ -282,7 +284,7 @@ Camera:
     width: 1
     height: 1
   near clip plane: 2
-  far clip plane: 8192
+  far clip plane: 20000
   field of view: 60
   orthographic: 0
   orthographic size: 5
@@ -422,7 +424,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Divisions: 64
-  m_Scale: 16384
+  m_Scale: 20000
   m_Material: {fileID: 2100000, guid: 4ce4e37c5f1495fa69ebfe5800a07c3b, type: 2}
   m_Height: 2048
 --- !u!1 &1719973574

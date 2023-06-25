@@ -63,8 +63,8 @@ namespace UniverseSimulation
         [SerializeField] private double m_MaxMass = 1e31;
 
         // Unit: Meters
-        // The diameter of the universe upon initiation
-        [SerializeField] private double m_InitialSimulationScale = 1e6;
+        // The diameter of galaxies upon initiation
+        [SerializeField] private double m_InitialGalaxyScale = 1e6;
 
         // Unit: Meters/second
         // The linear velocity of the universe upon initiation
@@ -73,6 +73,12 @@ namespace UniverseSimulation
         // Unit: Meters/second
         // The disc velocity of the universe upon initiation
         [SerializeField] private double m_InitialSimulationDiscVelocity = 1e2;
+
+        // Galaxy cluster count
+        [SerializeField]private int m_GalaxyCount = 4;
+
+        // Galaxy distribution radius
+        [SerializeField]private int m_GalaxyDistributionMaxRadius = 50;
 
         // The probability distribution of particle mass
         [SerializeField]private float m_MassDistributionExp = 1f;
@@ -206,7 +212,7 @@ namespace UniverseSimulation
 
             m_GravitationalConstant *= m_SimulationUnitScale;
 
-            m_InitialSimulationScale *= m_SimulationUnitScale;
+            m_InitialGalaxyScale *= m_SimulationUnitScale;
             m_InitialSimulationLinearVelocity *= m_SimulationUnitScale;
             m_InitialSimulationDiscVelocity *= m_SimulationUnitScale;
         }
@@ -221,7 +227,15 @@ namespace UniverseSimulation
                 new ComputeBuffer(m_InstanceCount, 32),
             };
 
+            var galaxyOrigins = new Vector3[m_GalaxyCount];
+            for (var i = 0; i < m_GalaxyCount; i++)
+            {
+                galaxyOrigins[i] = UnityEngine.Random.onUnitSphere * UnityEngine.Random.Range(0f, m_GalaxyDistributionMaxRadius);
+            }
+
+            var galaxyRatio = m_GalaxyCount / (float)m_InstanceCount;
             var particles = new ParticleData[m_InstanceCount];
+
             for (var i = 0; i < m_InstanceCount; i++)
             {
                 var direction = UnityEngine.Random.onUnitSphere;
@@ -229,10 +243,12 @@ namespace UniverseSimulation
                 var velocityAlpha = Mathf.Pow(UnityEngine.Random.Range(0f, 1f), m_VelocityDistributionExp);
 
                 var linearVelocity = direction * velocityAlpha;
-                var twistVelocity = Vector3.Cross(direction, Vector3.up) * velocityAlpha;
+                var discVelocity = Vector3.Cross(direction, Vector3.up) * velocityAlpha;
 
-                particles[i].Position = transform.position + direction * (float)m_InitialSimulationScale;
-                particles[i].Velocity = linearVelocity * (float)m_InitialSimulationLinearVelocity + twistVelocity * (float)m_InitialSimulationDiscVelocity;
+                var galaxyIdx = (int)Mathf.Floor(i * galaxyRatio);
+
+                particles[i].Position = transform.position + galaxyOrigins[galaxyIdx] + direction * (float)m_InitialGalaxyScale;
+                particles[i].Velocity = linearVelocity * (float)m_InitialSimulationLinearVelocity + discVelocity * (float)m_InitialSimulationDiscVelocity;
                 particles[i].Mass = Mathf.Lerp((float)m_MinMass, (float)m_MaxMass, massAlpha);
                 particles[i].Entropy = UnityEngine.Random.Range(0f, 1f);
             }
