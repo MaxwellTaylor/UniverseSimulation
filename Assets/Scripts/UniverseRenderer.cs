@@ -174,6 +174,10 @@ namespace UniverseSimulation
         // Total number of particles in simulation
         private int m_InstanceCount;
 
+        // First found directional light in the scene
+        private Light m_DirectionalLight;
+
+
         // ParticleData asynchronously read back from GPU
         private static Unity.Collections.NativeArray<ParticleData> s_ParticleDataReadback;
 
@@ -219,6 +223,18 @@ namespace UniverseSimulation
             }
 
             m_KernelIdx = m_ComputeShader.FindKernel("CSMain");
+
+            var directionalLights = FindObjectsOfType<Light>();
+            m_DirectionalLight = null;
+
+            for (int i = 0; i < directionalLights.Length; i++)
+            {
+                if (directionalLights[i].type == LightType.Directional)
+                {
+                    m_DirectionalLight = directionalLights[i];
+                    break;
+                }
+            }
 
             ScaleParameters();
             SetupBuffers();
@@ -351,6 +367,9 @@ namespace UniverseSimulation
             m_ComputeShader.SetBuffer(m_KernelIdx, "_DrawCallArgsBuffer", m_DrawCallArgsBuffer);
             m_ComputeShader.SetBuffer(m_KernelIdx, "_ActorBuffer", m_ActorBuffer);
 
+            var direction = (m_DirectionalLight == null) ? Vector3.up : m_DirectionalLight.transform.forward * -1f;
+            m_Material.SetVector("_LightDirection", direction);
+            m_Material.SetColor("_LightColour", m_DirectionalLight.color * m_DirectionalLight.intensity);
             m_Material.SetBuffer("_GeometryBuffer", m_GeometryBuffer);
 
             if (m_RenderTopology == RenderTopology.Lines)

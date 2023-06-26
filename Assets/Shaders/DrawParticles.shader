@@ -15,6 +15,7 @@ Shader "UniverseSimulation/DrawParticles"
 
         [Header(Aesthetics)]
         _Colour ("Colour", Color) = (1.0, 1.0, 1.0, 1.0)
+        _Ambient ("Ambient", Color) = (0.0, 0.0, 0.0, 1.0)
         _Exposure("Exposure", float) = 1.0
         _PointSize ("Size", Float) = 1
     }
@@ -42,10 +43,16 @@ Shader "UniverseSimulation/DrawParticles"
             #include "UnityCG.cginc"
 
             float3 _Colour;
+            float3 _Ambient;
 
             float _PointSize;
             float _Exposure;
             float _MinBrightness;
+
+#if defined(USE_GEOMETRYDATA) && defined(BUILD_TETRAHEDRONS)
+            float3 _LightColour;
+            float3 _LightDirection;
+#endif
 
             #if defined(USE_GEOMETRYDATA)
                 struct GeometryData
@@ -80,6 +87,7 @@ Shader "UniverseSimulation/DrawParticles"
                     float size : PSIZE;
                 #elif defined(BUILD_TETRAHEDRONS)
                     float3 normal : TEXCOORD1;
+                    float3 toCamera : TEXCOORD2;
                 #endif
             };
 
@@ -103,16 +111,20 @@ Shader "UniverseSimulation/DrawParticles"
                     int idx = vertexID % 2;
                 #elif defined(BUILD_TETRAHEDRONS)
                     int idx = vertexID % 12;
-                    o.normal = geo.Normals[idx / 3];
+                    o.normal = geo.Normals[idx / 3];                    
                 #endif
 
                 float4 vertexWS = float4(geo.Vertices[idx], 1.0);
                 o.vertex = mul(UNITY_MATRIX_VP, vertexWS);
+
+                #if defined(BUILD_TETRAHEDRONS)
+                    o.toCamera = normalize(_WorldSpaceCameraPos - vertexWS.xyz);
+                #endif
 #else
                 o.vertex = UnityObjectToClipPos(v.vertex);
 #endif
 
-                o.colour = vertexColour * _Colour * _Exposure;
+                o.colour = vertexColour * _Colour;
                 UNITY_TRANSFER_FOG(o, o.vertex);
                 return o;
             }
@@ -122,10 +134,21 @@ Shader "UniverseSimulation/DrawParticles"
                 float4 colour = float4(i.colour, 1.0);
 
                 #if defined(USE_GEOMETRYDATA) && defined(BUILD_TETRAHEDRONS)
-                    float3 toLight = float3(0.0, 1.0, 0.0);
-                    float lambert = dot(i.normal, toLight);
-                    colour.rgb *= saturate(lambert);
+                    // Diffuse
+                    float nDotL = dot(i.normal, _LightDirection);
+                    colour.rgb *= saturate(nDotL) * _LightColour;
+
+                    // Specular
+                    float3 halfway = normalize(i.toCamera + _LightDirection);
+                    float nDotH = dot(halfway, i.normal);
+                    nDotH = saturate(nDotH);
+
+                    #define SMOOTHNESS 10.0
+                    colour.rgb += pow(nDotH, SMOOTHNESS);
                 #endif
+
+                colour.rgb += _Ambient;
+                colour.rgb *= _Exposure;
 
                 UNITY_APPLY_FOG(i.fogCoord, colour);
                 return colour;
