@@ -7,30 +7,30 @@ namespace UniverseSimulation
     [RequireComponent(typeof(Camera))]
     public class CameraController : MonoBehaviour
     {
+        #region PUBLIC VARIABLES
+        public float OrbitSpeed = 5f;
+        public float ZoomSpeed = 5f;
+        public float MoveSpeed = 1f;
+        public float LookAtSpeed = 0.2f;
+        #endregion
+
+        #region PRIVATE VARIABLES
         private const int k_QueueLimit = 32;
 
-
-        [SerializeField] private float m_ZoomSpeed = 10f;
-        [SerializeField] private float m_LookAtSpeed = 1f;
-        [SerializeField] private float m_MoveSpeed = 1f;
-        [SerializeField] private float m_OrbitSpeed = 1f;
-
-        
         private GameObject m_Pivot;
         private float m_InitialZoom;
 
+        private static Vector3 s_LookAtPosition = Vector3.zero;
+        private static float s_Area = 0f;
 
         // A queue containing the point at the centre of all particles
         private static Queue<Vector3> s_LookAtQueue = new Queue<Vector3>();
 
         // A queue containing the average distance of particles from camera centre
         private static Queue<float> s_AreaQueue = new Queue<float>();
-
-
-        private static Vector3 s_LookAtPosition = Vector3.zero;
-        private static float s_Area = 0f;
+        #endregion
         
-
+        #region MONOBEHAVIOUR
         private void Start()
         {
             Cursor.lockState = CursorLockMode.Locked;
@@ -43,52 +43,15 @@ namespace UniverseSimulation
             m_InitialZoom = transform.localPosition.z;
         }
 
-        private void UpdatePositionAndZoom()
-        {
-            // Set pivot position
-            var toPos = Vector3.Normalize(s_LookAtPosition - transform.position);
-            toPos *= m_MoveSpeed * Time.deltaTime;
-            //m_Pivot.transform.position += toPos;
-
-            // Deduct an amount to invert behaviour for small particle clouds
-            var zoom = (s_Area - 0.05f) <= 0f ? -1f : 1f;
-
-            zoom *= m_ZoomSpeed * Time.deltaTime;
-            var position = transform.localPosition;
-
-            position.z = position.z - zoom;
-            transform.localPosition = position;
-        }
-
-        private void UpdateLookAt()
-        {
-            var toParticles = Vector3.Normalize(s_LookAtPosition - transform.position);
-            var lookAtRotation = Quaternion.identity;
-
-            if (!s_LookAtPosition.Equals(Vector3.zero))
-                lookAtRotation = Quaternion.FromToRotation(transform.forward, toParticles);
-
-            // Normalise to unit value
-            lookAtRotation = Quaternion.Normalize(lookAtRotation);
-
-            // Linearly map Quaternion magnitude to m_LookAtSpeed and deltaTime
-            // This can be thought of as scaling
-            lookAtRotation = Quaternion.Lerp(Quaternion.identity, lookAtRotation, m_LookAtSpeed * Time.deltaTime);
-            transform.rotation *= lookAtRotation;
-        }
-
-        private void UpdateOrbit()
-        {
-            m_Pivot.transform.rotation *= Quaternion.Euler(0f, m_OrbitSpeed * Time.deltaTime, 0f);
-        }
-
         private void Update()
         {
             UpdateLookAt();
             UpdatePositionAndZoom();
             UpdateOrbit();
         }
+        #endregion
 
+        #region GENERAL
         public static void Push(Vector3 lookAtPosition, float area)
         {
             s_LookAtQueue.Enqueue(lookAtPosition);
@@ -120,5 +83,45 @@ namespace UniverseSimulation
                 s_Area /= s_AreaQueue.Count;
             }
         }
+
+        private void UpdatePositionAndZoom()
+        {
+            // Set pivot position
+            var toPos = Vector3.Normalize(s_LookAtPosition - transform.position);
+            toPos *= MoveSpeed * Time.deltaTime;
+            m_Pivot.transform.position += toPos;
+
+            // Deduct an amount to invert behaviour for small particle clouds
+            var zoom = (s_Area - 0.05f) <= 0f ? -1f : 1f;
+
+            zoom *= ZoomSpeed * Time.deltaTime;
+            var position = transform.localPosition;
+
+            position.z = position.z - zoom;
+            transform.localPosition = position;
+        }
+
+        private void UpdateLookAt()
+        {
+            var toParticles = Vector3.Normalize(s_LookAtPosition - transform.position);
+            var lookAtRotation = Quaternion.identity;
+
+            if (!s_LookAtPosition.Equals(Vector3.zero))
+                lookAtRotation = Quaternion.FromToRotation(transform.forward, toParticles);
+
+            // Normalise to unit value
+            lookAtRotation = Quaternion.Normalize(lookAtRotation);
+
+            // Linearly map Quaternion magnitude to m_LookAtSpeed and deltaTime
+            // This can be thought of as scaling
+            lookAtRotation = Quaternion.Lerp(Quaternion.identity, lookAtRotation, LookAtSpeed * Time.deltaTime);
+            transform.rotation *= lookAtRotation;
+        }
+
+        private void UpdateOrbit()
+        {
+            m_Pivot.transform.rotation *= Quaternion.Euler(0f, OrbitSpeed * Time.deltaTime, 0f);
+        }
+        #endregion
     }
 }

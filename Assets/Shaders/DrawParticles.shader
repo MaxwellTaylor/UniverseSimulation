@@ -3,21 +3,21 @@ Shader "UniverseSimulation/DrawParticles"
     Properties
     {
         [Header(Primatives)]
-        [Enum(UnityEngine.Rendering.CullMode)] _CullMode ("CullMode", Integer) = 2
-        [Enum(UnityEngine.Rendering.BlendMode)] _BlendModeSrc ("BlendSrc", Integer) = 1
-        [Enum(UnityEngine.Rendering.BlendMode)] _BlendModeDst ("BlendDst", Integer) = 1
-        [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("ZTest", Integer) = 1
+        [Enum(UnityEngine.Rendering.CullMode)] _CullMode ("CullMode", Float) = 2.0
+        [Enum(UnityEngine.Rendering.BlendMode)] _BlendModeSrc ("BlendSrc", Float) = 1.0
+        [Enum(UnityEngine.Rendering.BlendMode)] _BlendModeDst ("BlendDst", Float) = 1.0
+        [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("ZTest", Float) = 1.0
 
-        [Toggle] _ZWrite ("ZWrite", Integer) = 0
-        [Toggle(USE_GEOMETRYDATA)] _UseGeometryData("GeometryData", Float) = 1
+        [Toggle] _ZWrite ("ZWrite", Float) = 0.0
+        [Toggle(USE_GEOMETRYDATA)] _UseGeometryData("GeometryData", Float) = 1.0
 
         [Space]
 
         [Header(Aesthetics)]
         _Colour ("Colour", Color) = (1.0, 1.0, 1.0, 1.0)
         _Ambient ("Ambient", Color) = (0.0, 0.0, 0.0, 1.0)
-        _Exposure("Exposure", float) = 1.0
-        _PointSize ("Size", Float) = 1
+        _Exposure("Exposure", Float) = 1.0
+        _PointSize ("Size", Float) = 1.0
     }
 
     SubShader
@@ -49,22 +49,22 @@ Shader "UniverseSimulation/DrawParticles"
             float _Exposure;
             float _MinBrightness;
 
-#if defined(USE_GEOMETRYDATA) && defined(BUILD_TETRAHEDRONS)
-            float3 _LightColour;
-            float3 _LightDirection;
-#endif
+            #if defined(USE_GEOMETRYDATA) && defined(BUILD_TETRAHEDRONS)
+                float3 _LightColour;
+                float3 _LightDirection;
+            #endif
 
             #if defined(USE_GEOMETRYDATA)
                 struct GeometryData
                 {
-                #if defined(BUILD_POINTS)
-                    float3 Vertices[1];
-                #elif defined(BUILD_LINES)
-                    float3 Vertices[2];
-                #elif defined(BUILD_TETRAHEDRONS)
-                    float3 Vertices[12];
-                    float3 Normals[4];
-                #endif
+                    #if defined(BUILD_POINTS)
+                        float3 Vertices[1];
+                    #elif defined(BUILD_LINES)
+                        float3 Vertices[2];
+                    #elif defined(BUILD_TETRAHEDRONS)
+                        float3 Vertices[12];
+                        float3 Normals[4];
+                    #endif
 
                     float3 Colour;
                 };
@@ -91,38 +91,38 @@ Shader "UniverseSimulation/DrawParticles"
                 #endif
             };
 
-#if defined(USE_GEOMETRYDATA)
-            v2f vert (uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
-#else
-            v2f vert (GeometrySimple v)
-#endif
+            #if defined(USE_GEOMETRYDATA)
+                v2f vert (uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
+            #else
+                v2f vert (GeometrySimple v)
+            #endif
             {
                 v2f o;
                 float3 vertexColour = (1.0).xxx;
 
-#if defined(USE_GEOMETRYDATA)
-                GeometryData geo = _GeometryBuffer[instanceID];
-                vertexColour = geo.Colour;
+                #if defined(USE_GEOMETRYDATA)
+                    GeometryData geo = _GeometryBuffer[instanceID];
+                    vertexColour = geo.Colour;
 
-                #if defined(BUILD_POINTS)
-                    int idx = vertexID;
-                    o.size = _PointSize;
-                #elif defined(BUILD_LINES)
-                    int idx = vertexID % 2;
-                #elif defined(BUILD_TETRAHEDRONS)
-                    int idx = vertexID % 12;
-                    o.normal = geo.Normals[idx / 3];                    
+                    #if defined(BUILD_POINTS)
+                        int idx = vertexID;
+                        o.size = _PointSize;
+                    #elif defined(BUILD_LINES)
+                        int idx = vertexID % 2;
+                    #elif defined(BUILD_TETRAHEDRONS)
+                        int idx = vertexID % 12;
+                        o.normal = geo.Normals[idx / 3];                    
+                    #endif
+
+                    float4 vertexWS = float4(geo.Vertices[idx], 1.0);
+                    o.vertex = mul(UNITY_MATRIX_VP, vertexWS);
+
+                    #if defined(BUILD_TETRAHEDRONS)
+                        o.toCamera = normalize(_WorldSpaceCameraPos - vertexWS.xyz);
+                    #endif
+                #else
+                    o.vertex = UnityObjectToClipPos(v.vertex);
                 #endif
-
-                float4 vertexWS = float4(geo.Vertices[idx], 1.0);
-                o.vertex = mul(UNITY_MATRIX_VP, vertexWS);
-
-                #if defined(BUILD_TETRAHEDRONS)
-                    o.toCamera = normalize(_WorldSpaceCameraPos - vertexWS.xyz);
-                #endif
-#else
-                o.vertex = UnityObjectToClipPos(v.vertex);
-#endif
 
                 o.colour = vertexColour * _Colour;
                 UNITY_TRANSFER_FOG(o, o.vertex);

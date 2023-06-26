@@ -8,57 +8,43 @@ namespace UniverseSimulation
 {
     public class UniverseActor : MonoBehaviour
     {
-        public enum ActorType
-        {
-            Attractor,
-            Repeller,
-            LinearForce,
-        }
+        #region PUBLIC VARIABLES
+        public delegate void OnDictUpdate();
+        public static OnDictUpdate Delegate_OnDictUpdate = null;
 
-        public struct ActorData
-        {
-            public Vector3 Position;
-            public Vector3 Force;
-            public float Mass;
-        }
+        [Header("Behaviour type of UniverseActor.")]
+        public ActorType ActorType = ActorType.Attractor;
+
+        [Header("Force of UniverseActor (unit: Newtons). Used for LinearForce type.")]
+        public double Force = 1f;
+
+        [Header("Mass of UniverseActor (unit: Kilograms). Used for Attractor and Repeller types.")]
+        public double Mass = 1f;
+        #endregion
+
+        #region PRIVATE VARIABLES
+        private static Dictionary<UniverseActor, ActorData> s_ActorDataDict = new Dictionary<UniverseActor, ActorData>();
+        private static double s_SimulationUnitScale;
 
         // A hard limit on the number of supported UniverseActors
-        private static int k_ActorCountLimit = 32;
+        private const int k_ActorCountLimit = 4;
+        #endregion
 
-        // The behaviour type of the actor
-        [SerializeField] private ActorType m_ActorType = ActorType.Attractor;
-
-        // Unit: Kilograms
-        // The mass of the actor; used for Attractor and Repeller types
-        [SerializeField] private double m_Mass = 1f;
-
-        // The force of the actor; used for LinearForce type
-        [SerializeField] private double m_Force = 1f;
-
-
-        private static double m_SimulationUnitScale;
-        private static Dictionary<UniverseActor, ActorData> s_ActorsDict = new Dictionary<UniverseActor, ActorData>();
-
-        public static Dictionary<UniverseActor, ActorData> ActorsDict
+        #region PROPERTIES
+        public static Dictionary<UniverseActor, ActorData> ActorDataDict
         {
-            get { return s_ActorsDict; }
-            set { }
+            get { return s_ActorDataDict; }
+            set {}
         }
 
         public static int Limit
         {
             get { return k_ActorCountLimit; }
-            set { }
+            set {}
         }
+        #endregion
 
-        public delegate void OnDictUpdate();
-        public static OnDictUpdate Delegate_OnDictUpdate = null;
-
-        public static void SetScale(double scale)
-        {
-            m_SimulationUnitScale = scale;
-        }
-
+        #region MONOBEHAVIOUR
         private void OnValidate()
         {
             if (Delegate_OnDictUpdate != null)
@@ -67,25 +53,25 @@ namespace UniverseSimulation
 
         private void OnEnable()
         {
-            var force = (m_ActorType == ActorType.LinearForce) ? transform.forward * (float)(m_Force * m_SimulationUnitScale) : Vector3.zero;
-            var mass = (m_ActorType == ActorType.Attractor || m_ActorType == ActorType.Repeller) ? (float)(m_Mass * m_SimulationUnitScale) : 0f;
+            var force = (float)(Force * s_SimulationUnitScale);
+            var mass = (float)(Mass * s_SimulationUnitScale);
 
-            // Mass is inverted for Repeller type
-            mass *= (m_ActorType == ActorType.Repeller) ? -1f : 1f;
+            mass = (ActorType == ActorType.Attractor || ActorType == ActorType.Repeller) ? mass : 0f;
+            mass *= (ActorType == ActorType.Repeller) ? -1f : 1f;
 
             var data = new ActorData()
             {
                 Position = transform.position,
-                Force = force,
+                Force = (ActorType == ActorType.LinearForce) ? transform.forward * force : Vector3.zero,
                 Mass = mass,
             };
 
-            if (!s_ActorsDict.ContainsKey(this))
+            if (!s_ActorDataDict.ContainsKey(this))
             {
-                if (s_ActorsDict.Count >= k_ActorCountLimit)
+                if (s_ActorDataDict.Count >= k_ActorCountLimit)
                     Debug.LogWarning("UniverseActor couldn't be registered as the hard limit has been reached!", this);
                 else
-                    s_ActorsDict.Add(this, data);
+                    s_ActorDataDict.Add(this, data);
 
                 if (Delegate_OnDictUpdate != null)
                     Delegate_OnDictUpdate.Invoke();
@@ -94,29 +80,31 @@ namespace UniverseSimulation
 
         private void OnDisable()
         {
-            if (s_ActorsDict.ContainsKey(this))
-                s_ActorsDict.Remove(this);
+            if (s_ActorDataDict.ContainsKey(this))
+                s_ActorDataDict.Remove(this);
         }
 
         private void OnDrawGizmosSelected()
         {
             Gizmos.color = new Color(0f, 1f, 0f, 0.5f);
 
-            switch(m_ActorType)
+            if (ActorType == ActorType.Attractor || ActorType == ActorType.Repeller)
             {
-                case ActorType.Attractor:
-                    Gizmos.DrawSphere(transform.position, 25f);
-                    break;
-
-                case ActorType.Repeller:
-                    Gizmos.DrawSphere(transform.position, 25f);
-                    break;
-
-                case ActorType.LinearForce:
-                    Gizmos.DrawSphere(transform.position, 5f);
-                    Gizmos.DrawRay(transform.position, transform.forward * 50f);
-                    break;
+                Gizmos.DrawSphere(transform.position, 25f);
+            }
+            else if (ActorType == ActorType.LinearForce)
+            {
+                Gizmos.DrawSphere(transform.position, 5f);
+                Gizmos.DrawRay(transform.position, transform.forward * 50f);
             }
         }
+        #endregion
+
+        #region GENERAL
+        public static void SetScale(double scale)
+        {
+            s_SimulationUnitScale = scale;
+        }
+        #endregion
     }
 }

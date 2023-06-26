@@ -2,7 +2,7 @@
 #pragma multi_compile BUILD_POINTS BUILD_LINES BUILD_TETRAHEDRONS
 
 #define EPSILON 1e-8
-#define PI 3.14159265359
+#define PI 3.1415927
 #define TWO_PI PI*2
 
 #define SHARED_MEMORY_SIZE 256
@@ -34,14 +34,14 @@ struct Input
 
 struct GeometryData
 {
-#if defined(BUILD_POINTS)
-    float3 Vertices[1];
-#elif defined(BUILD_LINES)
-    float3 Vertices[2];
-#elif defined(BUILD_TETRAHEDRONS)
-    float3 Vertices[12];
-    float3 Normals[4];
-#endif
+    #if defined(BUILD_POINTS)
+        float3 Vertices[1];
+    #elif defined(BUILD_LINES)
+        float3 Vertices[2];
+    #elif defined(BUILD_TETRAHEDRONS)
+        float3 Vertices[12];
+        float3 Normals[4];
+    #endif
 
     float3 Colour;
 };
@@ -78,8 +78,7 @@ AppendStructuredBuffer<GeometryData> _GeometryBuffer;
 
 groupshared ParticleData _SharedData[SHARED_MEMORY_SIZE];
 
-#include "ComputeHelperFunctions.hlsl"
-
+#include "ComputeFunctions.hlsl"
 
 void ApplyForces(Input input, ParticleData data, uint idx)
 {
