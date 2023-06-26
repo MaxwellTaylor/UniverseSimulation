@@ -1,7 +1,10 @@
 #pragma kernel CSMain
-#pragma multi_compile __ BUILD_LINES
+#pragma multi_compile BUILD_POINTS BUILD_LINES BUILD_TETRAHEDRONS
 
 #define EPSILON 1e-8
+#define PI 3.14159265359
+#define TWO_PI PI*2
+
 #define SHARED_MEMORY_SIZE 256
 #define THREAD_COUNT 64
 #define THREAD_DIM uint3(64, 4, 1)
@@ -20,6 +23,7 @@ float _VelocityDecay;
 float _TrailLength;
 float _TimeStep;
 float _MaxMass;
+float _Time;
 float _G;
 
 struct Input
@@ -30,10 +34,13 @@ struct Input
 
 struct GeometryData
 {
-#if defined(BUILD_LINES)
-    float3 Vertices[2];
-#else
+#if defined(BUILD_POINTS)
     float3 Vertices[1];
+#elif defined(BUILD_LINES)
+    float3 Vertices[2];
+#elif defined(BUILD_TETRAHEDRONS)
+    float3 Vertices[12];
+    float3 Normals[4];
 #endif
 
     float3 Colour;
@@ -135,13 +142,62 @@ void BuildGeometry(ParticleData data)
         return;
 
     GeometryData geo;
-
     geo.Colour = Colourise(data) * CalcLuminosity(data.Mass);
-    geo.Vertices[0] = data.Position;
 
-#if defined(BUILD_LINES)
-    geo.Vertices[1] = data.Position - (data.Velocity * _TrailLength);
-#endif
+    #if defined(BUILD_POINTS) || defined(BUILD_LINES)
+        geo.Vertices[0] = data.Position;
+
+        #if defined(BUILD_LINES)
+            geo.Vertices[1] = data.Position - (data.Velocity * _TrailLength);
+        #endif
+    #elif defined(BUILD_TETRAHEDRONS)
+
+        float mass = saturate(data.Mass / _MaxMass);
+
+        float3x3 rotMatrixX = RotationX(data.Entropy * TWO_PI + _Time * (1.0 - mass) * 2);
+        float3x3 rotMatrixY = RotationY(data.Entropy * data.Entropy * TWO_PI + _Time * (1.0 - mass) * 4);
+        float3x3 rotMatrixXY = mul(rotMatrixX, rotMatrixY);
+
+        // Tetrahedron
+        //       ^
+        //      /|\
+        //     / | \
+        //    '-.|.-'
+
+        float3 p0 = mul(rotMatrixXY, float3(-0.5, -0.217, -0.289)) * mass;
+        float3 p1 = mul(rotMatrixXY, float3(0.5, -0.217, -0.289)) * mass;
+        float3 p2 = mul(rotMatrixXY, float3(0.0, -0.217, 0.577)) * mass;
+        float3 p3 = mul(rotMatrixXY, float3(0.0, 0.650, 0.0)) * mass;
+
+        float3 n0 = mul(rotMatrixXY, float3(0.0, -1.0, 0.0));
+        float3 n1 = mul(rotMatrixXY, float3(-0.822, 0.316, 0.474));
+        float3 n2 = mul(rotMatrixXY, float3(0.822, 0.316, 0.474));
+        float3 n3 = mul(rotMatrixXY, float3(0.0, 0.317, -0.949));
+
+        // Triangle 1
+        geo.Vertices[0] = data.Position + p0;
+        geo.Vertices[1] = data.Position + p1;
+        geo.Vertices[2] = data.Position + p2;
+        geo.Normals[0] = n0;
+
+        // Triangle 2
+        geo.Vertices[3] = data.Position + p0;
+        geo.Vertices[4] = data.Position + p2;
+        geo.Vertices[5] = data.Position + p3;
+        geo.Normals[1] = n1;
+
+        // Triangle 3
+        geo.Vertices[6] = data.Position + p2;
+        geo.Vertices[7] = data.Position + p1;
+        geo.Vertices[8] = data.Position + p3;
+        geo.Normals[2] = n2;
+
+        // Triangle 4
+        geo.Vertices[9] = data.Position + p0;
+        geo.Vertices[10] = data.Position + p3;
+        geo.Vertices[11] = data.Position + p1;
+        geo.Normals[3] = n3;
+    #endif
 
     _GeometryBuffer.Append(geo);
     InterlockedAdd(_DrawCallArgsBuffer[0].InstanceCount, 1);

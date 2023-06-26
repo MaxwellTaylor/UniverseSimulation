@@ -22,6 +22,7 @@ namespace UniverseSimulation
         {
             Points,
             Lines,
+            Tetrahedrons,
         }
 
         private enum InitShape
@@ -190,15 +191,30 @@ namespace UniverseSimulation
             switch(m_RenderTopology)
             {
                 case RenderTopology.Points:
+                    Shader.EnableKeyword("BUILD_POINTS");
                     Shader.DisableKeyword("BUILD_LINES");
+                    Shader.DisableKeyword("BUILD_TETRAHEDRONS");
+
                     m_GeometryBufferStride = 24;
                     m_VerticesPerInstance = 1;
                     break;
 
                 case RenderTopology.Lines:
                     Shader.EnableKeyword("BUILD_LINES");
+                    Shader.DisableKeyword("BUILD_POINTS");
+                    Shader.DisableKeyword("BUILD_TETRAHEDRONS");
+
                     m_GeometryBufferStride = 36;
                     m_VerticesPerInstance = 2;
+                    break;
+
+                case RenderTopology.Tetrahedrons:
+                    Shader.EnableKeyword("BUILD_TETRAHEDRONS");
+                    Shader.DisableKeyword("BUILD_POINTS");
+                    Shader.DisableKeyword("BUILD_LINES");
+
+                    m_GeometryBufferStride = 192;
+                    m_VerticesPerInstance = 12;
                     break;
             }
 
@@ -366,6 +382,7 @@ namespace UniverseSimulation
             m_GeometryBuffer.SetCounterValue(0);
 
             PingPong();
+            m_ComputeShader.SetFloat("_Time", Time.time);
             m_ComputeShader.SetFloat("_TimeStep", Time.deltaTime * m_SimulationSpeed);
             m_ComputeShader.SetMatrix("_VPMatrix", m_TargetCamera.projectionMatrix * m_TargetCamera.worldToCameraMatrix);
             m_ComputeShader.SetBuffer(m_KernelIdx, "_ParticleBufferRead", m_ParticleBuffer[m_ReadIdx]);
@@ -450,13 +467,28 @@ namespace UniverseSimulation
             if (cam != m_TargetCamera)
                 return;
 
-            m_Material.SetPass(0);
+            MeshTopology meshTopology;
+            switch(m_RenderTopology)
+            {
+                case RenderTopology.Points:
+                    meshTopology = MeshTopology.Points;
+                    break;
 
-            if (m_RenderTopology == RenderTopology.Points)
-                Graphics.DrawProceduralIndirectNow(MeshTopology.Points, m_DrawCallArgsBuffer, 0);
-                
-            else if (m_RenderTopology == RenderTopology.Lines)
-                Graphics.DrawProceduralIndirectNow(MeshTopology.Lines, m_DrawCallArgsBuffer, 0);
+                case RenderTopology.Lines:
+                    meshTopology = MeshTopology.Lines;
+                    break;
+
+                case RenderTopology.Tetrahedrons:
+                    meshTopology = MeshTopology.Triangles;
+                    break;
+
+                default:
+                    meshTopology = MeshTopology.Points;
+                    break;
+            }
+
+            m_Material.SetPass(0);
+            Graphics.DrawProceduralIndirectNow(meshTopology, m_DrawCallArgsBuffer, 0);
         }
 
         private void OnDestroy()

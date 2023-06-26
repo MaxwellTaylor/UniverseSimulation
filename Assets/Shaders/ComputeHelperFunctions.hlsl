@@ -53,6 +53,20 @@
         return lum;
     }
 
+    float3x3 RotationX(float theta)
+    {
+        float c = cos(theta);
+        float s = sin(theta);
+        return float3x3(float3(1.0, 0.0, 0.0), float3(0.0, c, -s), float3(0.0, s, c));
+    }
+
+    float3x3 RotationY(float theta)
+    {
+        float c = cos(theta);
+        float s = sin(theta);
+        return float3x3(float3(c, 0.0, s), float3(0.0, 1.0, 0.0), float3(-s, 0.0, c));
+    }
+
     float3 Colourise(ParticleData data)
     {
         float mass = saturate(data.Mass / _MaxMass);

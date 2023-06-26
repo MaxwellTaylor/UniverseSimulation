@@ -2,11 +2,21 @@ Shader "UniverseSimulation/DrawParticles"
 {
     Properties
     {
-        _Colour ("Colour", Color) = (1.0, 1.0, 1.0, 1.0)
-        _PointSize ("Point Size", Float) = 1
-        _Exposure("Exposure", float) = 1.0
+        [Header(Primatives)]
+        [Enum(UnityEngine.Rendering.CullMode)] _CullMode ("CullMode", Integer) = 2
+        [Enum(UnityEngine.Rendering.BlendMode)] _BlendModeSrc ("BlendSrc", Integer) = 1
+        [Enum(UnityEngine.Rendering.BlendMode)] _BlendModeDst ("BlendDst", Integer) = 1
+        [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("ZTest", Integer) = 1
 
-        [Toggle(USE_GEOMETRYDATA)] _UseGeometryData("Use GeometryData", Float) = 1
+        [Toggle] _ZWrite ("ZWrite", Integer) = 0
+        [Toggle(USE_GEOMETRYDATA)] _UseGeometryData("GeometryData", Float) = 1
+
+        [Space]
+
+        [Header(Aesthetics)]
+        _Colour ("Colour", Color) = (1.0, 1.0, 1.0, 1.0)
+        _Exposure("Exposure", float) = 1.0
+        _PointSize ("Size", Float) = 1
     }
 
     SubShader
@@ -15,10 +25,10 @@ Shader "UniverseSimulation/DrawParticles"
 
         Pass
         {
-            Cull Off 
-            ZTest Always 
-            ZWrite Off 
-            Blend One One
+            Cull [_CullMode] 
+            ZTest [_ZTest] 
+            ZWrite [_ZWrite] 
+            Blend [_BlendModeDst] [_BlendModeSrc]
 
             CGPROGRAM
 
@@ -26,7 +36,7 @@ Shader "UniverseSimulation/DrawParticles"
             #pragma fragment frag
             
             #pragma multi_compile_fog    
-            #pragma multi_compile _ BUILD_LINES
+            #pragma multi_compile BUILD_POINTS BUILD_LINES BUILD_TETRAHEDRONS
             #pragma shader_feature USE_GEOMETRYDATA
 
             #include "UnityCG.cginc"
@@ -40,11 +50,14 @@ Shader "UniverseSimulation/DrawParticles"
             #if defined(USE_GEOMETRYDATA)
                 struct GeometryData
                 {
-                    #if defined(BUILD_LINES)
-                        float3 Vertices[2];
-                    #else
-                        float3 Vertices[1];
-                    #endif
+                #if defined(BUILD_POINTS)
+                    float3 Vertices[1];
+                #elif defined(BUILD_LINES)
+                    float3 Vertices[2];
+                #elif defined(BUILD_TETRAHEDRONS)
+                    float3 Vertices[12];
+                    float3 Normals[4];
+                #endif
 
                     float3 Colour;
                 };
@@ -60,9 +73,14 @@ Shader "UniverseSimulation/DrawParticles"
             struct v2f
             {
                 float4 vertex : SV_POSITION;
-                float size : PSIZE;
                 float3 colour : COLOR0;
                 UNITY_FOG_COORDS(0)
+
+                #if defined(BUILD_POINTS)
+                    float size : PSIZE;
+                #elif defined(BUILD_TETRAHEDRONS)
+                    float3 normal : TEXCOORD1;
+                #endif
             };
 
 #if defined(USE_GEOMETRYDATA)
@@ -76,16 +94,24 @@ Shader "UniverseSimulation/DrawParticles"
 
 #if defined(USE_GEOMETRYDATA)
                 GeometryData geo = _GeometryBuffer[instanceID];
-                
                 vertexColour = geo.Colour;
 
-                float4 vertexWS = float4(geo.Vertices[vertexID % 2], 1.0);
+                #if defined(BUILD_POINTS)
+                    int idx = vertexID;
+                    o.size = _PointSize;
+                #elif defined(BUILD_LINES)
+                    int idx = vertexID % 2;
+                #elif defined(BUILD_TETRAHEDRONS)
+                    int idx = vertexID % 12;
+                    o.normal = geo.Normals[idx / 3];
+                #endif
+
+                float4 vertexWS = float4(geo.Vertices[idx], 1.0);
                 o.vertex = mul(UNITY_MATRIX_VP, vertexWS);
 #else
                 o.vertex = UnityObjectToClipPos(v.vertex);
 #endif
 
-                o.size = _PointSize;
                 o.colour = vertexColour * _Colour * _Exposure;
                 UNITY_TRANSFER_FOG(o, o.vertex);
                 return o;
@@ -94,6 +120,13 @@ Shader "UniverseSimulation/DrawParticles"
             float4 frag (v2f i) : SV_Target
             {
                 float4 colour = float4(i.colour, 1.0);
+
+                #if defined(USE_GEOMETRYDATA) && defined(BUILD_TETRAHEDRONS)
+                    float3 toLight = float3(0.0, 1.0, 0.0);
+                    float lambert = dot(i.normal, toLight);
+                    colour.rgb *= saturate(lambert);
+                #endif
+
                 UNITY_APPLY_FOG(i.fogCoord, colour);
                 return colour;
             }
