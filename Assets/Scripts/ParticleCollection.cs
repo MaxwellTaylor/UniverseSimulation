@@ -67,15 +67,15 @@ namespace UniverseSimulation
         [Tooltip("Length of particle trails if RenderTopology is set to Lines.")]
         public float TrailLength = 0.01f;
 
-        public int VerticesPerInstance;
-        public int GeometryBufferStride;
-        public string[] KeywordsEnable;
-        public string[] KeywordsDisable;
-        public MeshTopology MeshTopology;
+        [NonSerialized] public int VerticesPerInstance;
+        [NonSerialized] public int GeometryBufferStride;
+        [NonSerialized] public string[] KeywordsEnable;
+        [NonSerialized] public string[] KeywordsDisable;
+        [NonSerialized] public MeshTopology MeshTopology;
 
-        public Material Material;
-        public ComputeBuffer DrawCallArgsBuffer;
-        public ComputeBuffer GeometryBuffer;
+        [NonSerialized] public Material Material;
+        [NonSerialized] public ComputeBuffer DrawCallArgsBuffer;
+        [NonSerialized] public ComputeBuffer GeometryBuffer;
         #endregion
 
         #region PRIVATE VARIABLES
