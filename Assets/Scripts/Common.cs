@@ -6,6 +6,7 @@ namespace UniverseSimulation
 {
     public static class Common
     {
+        public const string k_KeywordUseGeometryData = "USE_GEOMETRYDATA";
         public const string k_KeywordBuildPoints = "BUILD_POINTS";
         public const string k_KeywordBuildLines = "BUILD_LINES";
         public const string k_KeywordBuildTetrahedrons = "BUILD_TETRAHEDRONS";

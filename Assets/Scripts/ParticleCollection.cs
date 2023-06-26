@@ -246,6 +246,9 @@ namespace UniverseSimulation
             Material.SetVector(Common.k_MaterialPropLightDirection, direction);
             Material.SetColor(Common.k_MaterialPropLightColour, colour);
 
+            // This defaults to enabled, but it's set here anyway for robustness
+            Material.EnableKeyword(Common.k_KeywordUseGeometryData);
+
             switch(RenderTopology)
             {
                 case RenderTopology.Points:

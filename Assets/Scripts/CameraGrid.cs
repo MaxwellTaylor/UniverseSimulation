@@ -91,12 +91,12 @@ namespace UniverseSimulation
             m_Material.SetFloat(Common.k_MaterialPropExposure, 1f);
 
             m_Material.SetFloat(Common.k_MaterialPropZTest, (float)UnityEngine.Rendering.CompareFunction.Always);
-            m_Material.SetFloat(Common.k_MaterialPropGeometryData, false ? 1f : 0f);
-
             m_Material.SetFloat(Common.k_MaterialPropCullMode, (float)UnityEngine.Rendering.CullMode.Off);
             m_Material.SetFloat(Common.k_MaterialPropBlendModeSrc, (float)UnityEngine.Rendering.BlendMode.One);
             m_Material.SetFloat(Common.k_MaterialPropBlendModeDst, (float)UnityEngine.Rendering.BlendMode.One);
             m_Material.SetFloat(Common.k_MaterialPropZWrite, false ? 1f : 0f);
+
+            m_Material.DisableKeyword(Common.k_KeywordUseGeometryData);
         }
 
         private void SubmitCommandBuffer()
