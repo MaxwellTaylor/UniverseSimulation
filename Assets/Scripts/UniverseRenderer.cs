@@ -45,20 +45,43 @@ namespace UniverseSimulation
         public CameraController TargetCameraController;
         [Tooltip("Proportion of particles to sample on CPU (used for camera tracking and diagnostics).")]
         public float SampleRatio = 0.05f;
-        [Tooltip("Index of ParticleCollection to use for CPU sampling.")]
-        public int SampleIndex = 0;
         #endregion
 
         #region PRIVATE VARIABLES
         private bool m_IsInitialised = false;
         private int m_KernelIdx = -1;
+        private int m_AggregateInstanceCount;
+
+        private int m_ReadIdx = 0;
+        private int m_WriteIdx = 1;
 
         private Camera m_TargetCamera;
         private Light m_DirectionalLight;
         private ComputeBuffer m_ActorBuffer;
+        private ComputeBuffer[] m_ParticleBuffers;
 
         // ParticleData asynchronously read back from GPU
         private static Unity.Collections.NativeArray<ParticleData> s_ParticleDataReadback;
+        #endregion
+
+        #region PROPERTIES
+        private ComputeBuffer ParticleBufferRead
+        {
+            get
+            {
+                return m_ParticleBuffers[m_ReadIdx];
+            }
+            set {}
+        }
+
+        private ComputeBuffer ParticleBufferWrite
+        {
+            get
+            {
+                return m_ParticleBuffers[m_WriteIdx];
+            }
+            set {}
+        }
         #endregion
 
         #region MONOBEHAVIOUR
@@ -80,19 +103,21 @@ namespace UniverseSimulation
                 }
             }
 
+            m_AggregateInstanceCount = 0;
             foreach (var collection in ParticleCollections)
-                collection.Setup(transform.position, m_DirectionalLight);
+            {
+                collection.Setup(m_AggregateInstanceCount, transform.position, m_DirectionalLight);
+                m_AggregateInstanceCount += collection.InstanceCount;
+            }
 
-            SetupActorBuffer();
+            SetupBuffers();
             SetupComputeShader();
             m_IsInitialised = true;
 
             Camera.onPostRender += OnPostRenderCallback;
             UniverseActor.Delegate_OnDictUpdate += OnActorsUpdated;
             OnActorsUpdated();
-
-            SampleIndex = Math.Min(SampleIndex, ParticleCollections.Length - 1);
-            AsyncGPUReadback.Request(ParticleCollections[SampleIndex].ParticleReadBuffer, OnAsyncGPUReadback);
+            AsyncGPUReadback.Request(ParticleBufferRead, OnAsyncGPUReadback);
         }
 
         private void Update()
@@ -100,12 +125,14 @@ namespace UniverseSimulation
             if (!m_IsInitialised)
                 return;
                 
+            PingPong();
+
             foreach (var collection in ParticleCollections)
             {
                 SetGlobalKeywords(collection);
                 SetComputeShaderProperties(collection);
-
                 collection.PrepareForRender();
+
                 DispatchCompute(collection);
             }
         }
@@ -114,6 +141,10 @@ namespace UniverseSimulation
         {
             m_IsInitialised = false;
             m_ActorBuffer.Release();
+
+            ParticleBufferRead.Release();
+            ParticleBufferWrite.Release();
+            m_ParticleBuffers = null;
 
             foreach (var collection in ParticleCollections)
                 collection.Cleanup();
@@ -205,7 +236,7 @@ namespace UniverseSimulation
             CameraController.Push(centreWS, particleAreaCS);
 
             // Set up next request
-            AsyncGPUReadback.Request(ParticleCollections[SampleIndex].ParticleReadBuffer, OnAsyncGPUReadback);
+            AsyncGPUReadback.Request(ParticleBufferRead, OnAsyncGPUReadback);
         }
         #endregion
 
@@ -217,14 +248,41 @@ namespace UniverseSimulation
             ParticleCollection.SetScale(SimulationUnitScale);
         }
 
+        private void PingPong()
+        {
+            m_ReadIdx = (m_ReadIdx + 1) % 2;
+            m_WriteIdx = (m_WriteIdx + 1) % 2;
+
+            ComputeShader.SetBuffer(m_KernelIdx, Common.k_ShaderPropParticleBufferRead, ParticleBufferRead);
+            ComputeShader.SetBuffer(m_KernelIdx, Common.k_ShaderPropParticleBufferWrite, ParticleBufferWrite);
+        }
+
         private void DispatchCompute(ParticleCollection collection)
         {
             ComputeShader.Dispatch(m_KernelIdx, collection.InstanceCount / 64, 1, 1);
         }
 
-        private void SetupActorBuffer()
+        private void SetupBuffers()
         {
             m_ActorBuffer = new ComputeBuffer(UniverseActor.Limit, 7*4, ComputeBufferType.Structured);
+
+            m_ParticleBuffers = new ComputeBuffer[]
+            {
+                new ComputeBuffer(m_AggregateInstanceCount, 32),
+                new ComputeBuffer(m_AggregateInstanceCount, 32),
+            };
+
+            var aggregateParticles = new ParticleData[m_AggregateInstanceCount];
+            int prevInstanceCount = 0;
+
+            foreach (var collection in ParticleCollections)
+            {
+                Array.Copy(collection.Particles, 0, aggregateParticles, prevInstanceCount, collection.Particles.Length);
+                prevInstanceCount = collection.InstanceCount;
+            }
+
+            ParticleBufferRead.SetData(aggregateParticles);
+            ParticleBufferWrite.SetData(aggregateParticles);
         }
 
         private void SetupComputeShader()
@@ -245,15 +303,14 @@ namespace UniverseSimulation
             ComputeShader.SetFloat(Common.k_ShaderPropTimeStep, Time.deltaTime * SimulationSpeed);
             ComputeShader.SetMatrix(Common.k_ShaderPropVPMatrix, m_TargetCamera.projectionMatrix * m_TargetCamera.worldToCameraMatrix);
 
+            ComputeShader.SetBuffer(m_KernelIdx, Common.k_ShaderPropGeometryBuffer, collection.GeometryBuffer);
+            ComputeShader.SetBuffer(m_KernelIdx, Common.k_ShaderPropDrawCallArgsBuffer, collection.DrawCallArgsBuffer);
+
             ComputeShader.SetVector(Common.k_ShaderPropColourA, collection.ColourA);
             ComputeShader.SetVector(Common.k_ShaderPropColourB, collection.ColourB);
             ComputeShader.SetFloat(Common.k_ShaderPropMaxMass, (float)collection.MaxMass);
             ComputeShader.SetInt(Common.k_ShaderPropInstanceCount, collection.InstanceCount);
-            ComputeShader.SetBuffer(m_KernelIdx, Common.k_ShaderPropGeometryBuffer, collection.GeometryBuffer);
-            ComputeShader.SetBuffer(m_KernelIdx, Common.k_ShaderPropDrawCallArgsBuffer, collection.DrawCallArgsBuffer);
-
-            ComputeShader.SetBuffer(m_KernelIdx, Common.k_ShaderPropParticleBufferRead, collection.ParticleReadBuffer);
-            ComputeShader.SetBuffer(m_KernelIdx, Common.k_ShaderPropParticleBufferWrite, collection.ParticleWriteBuffer);
+            ComputeShader.SetInt(Common.k_ShaderPropStartPosition, collection.StartPosition);
 
             if (collection.RenderTopology == RenderTopology.Lines)
                 ComputeShader.SetFloat(Common.k_ShaderPropTrailLength, collection.TrailLength);

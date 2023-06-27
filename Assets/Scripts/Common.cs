@@ -27,6 +27,7 @@ namespace UniverseSimulation
         public const string k_ShaderPropColourA = "_ColourA";
         public const string k_ShaderPropColourB = "_ColourB";
         public const string k_ShaderPropInstanceCount = "_InstanceCount";
+        public const string k_ShaderPropStartPosition = "_StartPosition";
         public const string k_ShaderPropGeometryBuffer = "_GeometryBuffer";
         public const string k_ShaderPropDrawCallArgsBuffer = "_DrawCallArgsBuffer";
         public const string k_ShaderPropActorBuffer = "_ActorBuffer";

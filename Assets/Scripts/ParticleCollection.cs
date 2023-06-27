@@ -76,42 +76,19 @@ namespace UniverseSimulation
         [NonSerialized] public Material Material;
         [NonSerialized] public ComputeBuffer DrawCallArgsBuffer;
         [NonSerialized] public ComputeBuffer GeometryBuffer;
+        [NonSerialized] public ParticleData[] Particles;
+        [NonSerialized] public int StartPosition;
         #endregion
 
         #region PRIVATE VARIABLES
         private static double s_SimulationUnitScale;
         private static List<ParticleCollection> s_InternalParticleCollectionsList;
-
-        private int m_ReadIdx = 0;
-        private int m_WriteIdx = 1;
-
-        public ComputeBuffer[] m_ParticleBuffers;
         #endregion
 
         #region PROPERTIES
         public int InstanceCount
         {
             get { return (int)ParticleCount; }
-            set {}
-        }
-
-        public ComputeBuffer ParticleReadBuffer
-        {
-            get
-            {
-                //SetupBuffers();
-                return m_ParticleBuffers[m_ReadIdx];
-            }
-            set {}
-        }
-
-        public ComputeBuffer ParticleWriteBuffer
-        {
-            get
-            {
-                //SetupBuffers();
-                return m_ParticleBuffers[m_WriteIdx];
-            }
             set {}
         }
         #endregion
@@ -143,12 +120,13 @@ namespace UniverseSimulation
             }
         }
 
-        public void Setup(Vector3 origin, Light light)
+        public void Setup(int startPosition, Vector3 origin, Light light)
         {
             SetupMaterial(light);
             SetupBuffers();
             SetupParticles(origin);
 
+            StartPosition = startPosition;
             Material.SetBuffer(Common.k_MaterialPropGeometryBuffer, GeometryBuffer);
         }
 
@@ -157,8 +135,6 @@ namespace UniverseSimulation
             if (s_InternalParticleCollectionsList.Contains(this))
                 s_InternalParticleCollectionsList.Remove(this);
 
-            ParticleReadBuffer.Release();
-            ParticleWriteBuffer.Release();
             GeometryBuffer.Release();
             DrawCallArgsBuffer.Release();
 
@@ -191,26 +167,10 @@ namespace UniverseSimulation
             });
             
             GeometryBuffer.SetCounterValue(0);
-            PingPong();
-        }
-
-        private void PingPong()
-        {
-            m_ReadIdx = (m_ReadIdx + 1) % 2;
-            m_WriteIdx = (m_WriteIdx + 1) % 2;
         }
 
         private void SetupBuffers()
         {
-            if (m_ParticleBuffers == null)
-            {
-                m_ParticleBuffers = new ComputeBuffer[]
-                {
-                    new ComputeBuffer(InstanceCount, 32),
-                    new ComputeBuffer(InstanceCount, 32),
-                };
-            }
-
             if (GeometryBuffer == null)
             {
                 var vertexCount = VerticesPerInstance * InstanceCount;
@@ -304,7 +264,7 @@ namespace UniverseSimulation
             }
 
             var clusterRatio = ClusterCount / (float)InstanceCount;
-            var particles = new ParticleData[InstanceCount];
+            Particles = new ParticleData[InstanceCount];
 
             for (var i = 0; i < InstanceCount; i++)
             {
@@ -312,8 +272,8 @@ namespace UniverseSimulation
                 var massAlpha = Mathf.Pow(UnityEngine.Random.Range(0f, 1f), MassDistributionExp);
                 var velocityAlpha = Mathf.Pow(UnityEngine.Random.Range(0f, 1f), VelocityDistributionExp);
 
-                particles[i].Mass = Mathf.Lerp((float)MinMass, (float)MaxMass, massAlpha);
-                particles[i].Entropy = UnityEngine.Random.Range(0f, 1f);
+                Particles[i].Mass = Mathf.Lerp((float)MinMass, (float)MaxMass, massAlpha);
+                Particles[i].Entropy = UnityEngine.Random.Range(0f, 1f);
 
                 Vector3 linearVelocity;
                 Vector3 discVelocity;
@@ -326,12 +286,12 @@ namespace UniverseSimulation
                         linearVelocity = direction * velocityAlpha;
                         discVelocity = Vector3.Cross(direction, Vector3.up) * velocityAlpha;
 
-                        particles[i].Position =
+                        Particles[i].Position =
                             origin +
                             clusterOrigins[clusterIdx] +
                             direction * (float)DistributionScaleMax;
 
-                        particles[i].Velocity =
+                        Particles[i].Velocity =
                             linearVelocity * (float)SimulationLinearVelocity +
                             discVelocity * (float)SimulationDiscVelocity;
                         break;
@@ -343,20 +303,17 @@ namespace UniverseSimulation
                         linearVelocity = Quaternion.Euler(0f, 90f, 0f) * direction * velocityAlpha;
                         discVelocity = Vector3.Cross(direction, Vector3.up) * velocityAlpha;
 
-                        particles[i].Position =
+                        Particles[i].Position =
                             origin +
                             clusterOrigins[clusterIdx] +
                             direction * UnityEngine.Random.Range((float)DistributionScaleMin, (float)DistributionScaleMax);
 
-                        particles[i].Velocity =
+                        Particles[i].Velocity =
                             linearVelocity * (float)SimulationLinearVelocity +
                             discVelocity * (float)SimulationDiscVelocity;
                         break;
                 }
             }
-
-            ParticleReadBuffer.SetData(particles);
-            ParticleWriteBuffer.SetData(particles);
         }
         #endregion
     }

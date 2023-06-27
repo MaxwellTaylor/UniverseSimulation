@@ -12,6 +12,7 @@
 
 float4x4 _VPMatrix;
 uint _InstanceCount;
+uint _StartPosition;
 uint _ActorCount;
 
 float4 _ColourA;
@@ -99,10 +100,10 @@ void ApplyForces(Input input, ParticleData data, uint idx)
     {
         x = input.GroupID.x + tile;
 
-        idxShared = input.ThreadID.x + THREAD_DIM.x * input.ThreadID.y;
-        idxRead = ((x) < GROUP_DIM.x) ? (x) : (x - GROUP_DIM.x)  * THREAD_DIM.x + input.ThreadID.x;
+        idxShared = input.ThreadID.x + input.ThreadID.y * THREAD_DIM.x;
+        idxRead = (x < GROUP_DIM.x) ? x : input.ThreadID.x + (x - GROUP_DIM.x) * THREAD_DIM.x;
 
-        _SharedData[idxShared] = _ParticleBufferRead[idxRead];
+        _SharedData[idxShared] = _ParticleBufferRead[_StartPosition + idxRead];
         GroupMemoryBarrierWithGroupSync();
 
         [unroll(THREAD_DIM.x)]
@@ -131,7 +132,7 @@ void ApplyForces(Input input, ParticleData data, uint idx)
     data.Velocity = data.Velocity * _VelocityDecay + acceleration;
     data.Position += data.Velocity;
     
-    _ParticleBufferWrite[idx] = data;
+    _ParticleBufferWrite[_StartPosition + idx] = data;
 }
 
 void BuildGeometry(ParticleData data)
@@ -205,8 +206,8 @@ void BuildGeometry(ParticleData data)
 [numthreads(THREAD_COUNT, 1, 1)]
 void CSMain (Input input)
 {
-    uint idx = input.GroupID.x * THREAD_COUNT + input.ThreadID.x;
-    ParticleData data = _ParticleBufferRead[idx];
+    uint idx = input.ThreadID.x + input.GroupID.x * THREAD_COUNT;
+    ParticleData data = _ParticleBufferRead[_StartPosition + idx];
 
     ApplyForces(input, data, idx);
     BuildGeometry(data);
