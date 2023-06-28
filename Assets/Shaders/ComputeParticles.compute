@@ -1,5 +1,21 @@
 #pragma kernel CSMain
+
 #pragma multi_compile BUILD_POINTS BUILD_LINES BUILD_TETRAHEDRONS
+#pragma multi_compile DISTANCE_FUNC_1 DISTANCE_FUNC_2 DISTANCE_FUNC_4 DISTANCE_FUNC_6 DISTANCE_FUNC_8
+
+#if defined(DISTANCE_FUNC_1)
+    // Sub-optimal
+    #define DIST_F(x) x = sqrt(x);
+#elif defined(DISTANCE_FUNC_2)
+    // Already squared
+    #define DIST_F(x)
+#elif defined(DISTANCE_FUNC_4)
+    #define DIST_F(x) x = x*x;
+#elif defined(DISTANCE_FUNC_6)
+    #define DIST_F(x) x = x*x*x;
+#elif defined(DISTANCE_FUNC_8)
+    #define DIST_F(x) x = x*x*x*x;
+#endif
 
 #define EPSILON 1e-8
 #define PI 3.1415927
@@ -10,7 +26,11 @@
 #define THREAD_DIM uint3(64, 4, 1)
 #define GROUP_DIM uint3(_InstanceCount / 64, 1, 1)
 
+// X: s_SpeedDefault, Y: s_DistanceDefault,
+// Z: s_MassDefault, W: s_ForceDefault
+float4 _UnitConversion;
 float4x4 _VPMatrix;
+
 uint _InstanceCount;
 uint _StartPosition;
 uint _ActorCount;
@@ -18,12 +38,11 @@ uint _ActorCount;
 float4 _ColourA;
 float4 _ColourB;
 
-float _DistanceSoftening;
 float _DistanceCoeff;
 float _VelocityDecay;
 float _TrailLength;
 float _TimeStep;
-float _MaxMass;
+float _AvgMass;
 float _Time;
 float _G;
 
@@ -93,6 +112,7 @@ void ApplyForces(Input input, ParticleData data, uint idx)
     uint idxRead;
     uint idxShared;
 
+    // Force in Newtons
     float3 force = float3(0.0, 0.0, 0.0);
 
     //[unroll(N / THREAD_DIM.x)]
@@ -127,6 +147,14 @@ void ApplyForces(Input input, ParticleData data, uint idx)
         CalcInputForce(data, _ActorBuffer[k], /*inout*/ force);
     }
 
+    // With default behaviour,
+    // this will convert from Newtons to Kilonewtons
+    force *= _UnitConversion.w;
+
+    // Newton's Second Law of Motion
+    // Outputs Kilometres/Second/Second
+
+    // a = f/m
     float3 acceleration = (force / data.Mass) * _TimeStep;
 
     data.Velocity = data.Velocity * _VelocityDecay + acceleration;
@@ -152,7 +180,7 @@ void BuildGeometry(ParticleData data)
         #endif
     #elif defined(BUILD_TETRAHEDRONS)
 
-        float mass = saturate(data.Mass / _MaxMass);
+        float mass = saturate(data.Mass / _AvgMass);
 
         float3x3 rotMatrixX = RotationX(data.Entropy * TWO_PI + _Time * (1.0 - mass) * 2);
         float3x3 rotMatrixY = RotationY(data.Entropy * data.Entropy * TWO_PI + _Time * (1.0 - mass) * 4);

@@ -12,6 +12,36 @@ namespace UniverseSimulation
     public class ParticleCollection : ScriptableObject
     {
         #region PUBLIC VARIABLES
+        [Header("Behaviour")]
+
+        [Tooltip("Particle cluster initialisation shape.")]
+        public InitShape InitialisationShape = InitShape.AccretionDisc;
+        [Tooltip("Total number of particles in ParticleCollection.")]
+        public ParticleCount ParticleCount = ParticleCount.Large_32768;
+        [Tooltip("Probability distribution of particle mass.")]
+        public float MassDistributionExp = 1f;
+        [Tooltip("Probability distribution of particle velocity.")]
+        public float VelocityDistributionExp = 1f;
+        [Tooltip("Number of particle clusters.")]
+        public int ClusterCount = 1;
+
+        [Space]
+        [Header("Physical Properties")]
+
+        [Tooltip("Mass of entire ParticleCollection.")]
+        public MeasurementContainer TotalMass = new MeasurementContainer(1.5e19, MeasurementUnits.Mass_Kilograms);
+        [Tooltip("Maximum radius from origin of particle clusters.")]
+        public MeasurementContainer ClusterMaxRadius = new MeasurementContainer(0, MeasurementUnits.Distance_Kilometres);
+        [Tooltip("Inner diameter of particle clusters.")]
+        public MeasurementContainer DistributionInnerDiameter = new MeasurementContainer(149000, MeasurementUnits.Distance_Kilometres);
+        [Tooltip("Outer diameter of particle clusters.")]
+        public MeasurementContainer DistributionOuterDiameter = new MeasurementContainer(274000, MeasurementUnits.Distance_Kilometres);
+        [Tooltip("Linear velocity of particles upon initiation.")]
+        public MeasurementContainer SimulationLinearVelocity = new MeasurementContainer(16.4, MeasurementUnits.Speed_KilometresPerSecond);
+        [Tooltip("Disc velocity of particles upon initiation.")]
+        public MeasurementContainer SimulationDiscVelocity = new MeasurementContainer(10, MeasurementUnits.Speed_KilometresPerSecond);
+
+        [Space]
         [Header("Rendering")]
 
         [Tooltip("Topology type to render.")]
@@ -20,38 +50,6 @@ namespace UniverseSimulation
         [ColorUsage(false, true)] public Color ColourA = Color.white;
         [Tooltip("Colour variant for particles.")]
         [ColorUsage(false, true)] public Color ColourB = Color.white;
-
-        [Space]
-        [Header("Behaviour")]
-
-        [Tooltip("Particle cluster initialisation shape.")]
-        public InitShape InitialisationShape = InitShape.AccretionDisc;
-        [Tooltip("Total number of particles in ParticleCollection.")]
-        public ParticleCount ParticleCount = ParticleCount._32768;
-        [Tooltip("Number of particle clusters.")]
-        public int ClusterCount = 1;
-        [Tooltip("Maximum particle cluster distribution radius (unit: Meters).")]
-        public float ClusterMaxRadius = 0;
-        [Tooltip("Probability distribution of particle mass.")]
-        public float MassDistributionExp = 1f;
-        [Tooltip("Probability distribution of particle velocity.")]
-        public float VelocityDistributionExp = 1f;
-
-        [Space]
-        [Header("Physical Properties")]
-
-        [Tooltip("Minimum mass of a particle (unit: Kilograms).")]
-        public double MinMass = 1e0;
-        [Tooltip("Maximum mass of a particle (unit: Kilograms).")]
-        public double MaxMass = 1e1;
-        [Tooltip("Inner diameter of particle clusters (unit: Meters). Used for AccretionDiscs.")]
-        public double DistributionScaleMin = 1e1;
-        [Tooltip("Outer diameter of particle clusters (unit: Meters).")]
-        public double DistributionScaleMax = 5e1;
-        [Tooltip("Linear velocity of particles upon initiation (unit: Meters/Second).")]
-        public double SimulationLinearVelocity = 1e1;
-        [Tooltip("Disc velocity of particles upon initiation (unit: Meters/second).")]
-        public double SimulationDiscVelocity = 1e1;
 
         [Space]
         [Header("Material")]
@@ -65,7 +63,7 @@ namespace UniverseSimulation
         [Tooltip("Size of particles if RenderTopology is set to Points.")]
         public float MaterialPointSize = 1f;
         [Tooltip("Length of particle trails if RenderTopology is set to Lines.")]
-        public float TrailLength = 0.01f;
+        public float TrailLength = 0.5f;
 
         [NonSerialized] public int VerticesPerInstance;
         [NonSerialized] public int GeometryBufferStride;
@@ -80,11 +78,6 @@ namespace UniverseSimulation
         [NonSerialized] public int StartPosition;
         #endregion
 
-        #region PRIVATE VARIABLES
-        private static double s_SimulationUnitScale;
-        private static List<ParticleCollection> s_InternalParticleCollectionsList;
-        #endregion
-
         #region PROPERTIES
         public int InstanceCount
         {
@@ -93,33 +86,7 @@ namespace UniverseSimulation
         }
         #endregion
 
-        #region CONSTRUCTOR
-        public ParticleCollection()
-        {
-            if (s_InternalParticleCollectionsList == null)
-                s_InternalParticleCollectionsList = new List<ParticleCollection>();
-
-            if (!s_InternalParticleCollectionsList.Contains(this))
-                s_InternalParticleCollectionsList.Add(this);
-        }
-        #endregion
-
         #region GENERAL
-        public static void SetScale(double scale)
-        {
-            s_SimulationUnitScale = scale;
-
-            foreach (var collection in s_InternalParticleCollectionsList)
-            {
-                collection.MinMass *= s_SimulationUnitScale;
-                collection.MaxMass *= s_SimulationUnitScale;
-                collection.DistributionScaleMin *= s_SimulationUnitScale;
-                collection.DistributionScaleMax *= s_SimulationUnitScale;
-                collection.SimulationLinearVelocity *= s_SimulationUnitScale;
-                collection.SimulationDiscVelocity *= s_SimulationUnitScale;
-            }
-        }
-
         public void Setup(int startPosition, Vector3 origin, Light light)
         {
             SetupMaterial(light);
@@ -132,9 +99,6 @@ namespace UniverseSimulation
 
         public void Cleanup()
         {
-            if (s_InternalParticleCollectionsList.Contains(this))
-                s_InternalParticleCollectionsList.Remove(this);
-
             GeometryBuffer.Release();
             DrawCallArgsBuffer.Release();
 
@@ -258,42 +222,46 @@ namespace UniverseSimulation
         private void SetupParticles(Vector3 origin)
         {
             var clusterOrigins = new Vector3[ClusterCount];
+            var maxRadius = 0f;
+
             for (var i = 0; i < ClusterCount; i++)
             {
-                clusterOrigins[i] = UnityEngine.Random.onUnitSphere * UnityEngine.Random.Range(0f, ClusterMaxRadius);
+                maxRadius = ClusterMaxRadius.GetScaled();
+                clusterOrigins[i] = UnityEngine.Random.onUnitSphere * UnityEngine.Random.Range(0f, maxRadius);
             }
 
             var clusterRatio = ClusterCount / (float)InstanceCount;
             Particles = new ParticleData[InstanceCount];
 
+            var massTotalInit = 0f;
+            for (var i = 0; i < InstanceCount; i++)
+            {
+                // Entropy is useful for introducing randomised variation
+                Particles[i].Entropy = UnityEngine.Random.Range(0f, 1f);
+
+                var mass = Mathf.Pow(UnityEngine.Random.Range(float.Epsilon, 1f), MassDistributionExp);
+                Particles[i].Mass = mass;
+                massTotalInit += mass;                
+            }
+
+            var massScalar = TotalMass.GetScaled() / massTotalInit;
             for (var i = 0; i < InstanceCount; i++)
             {
                 var clusterIdx = (int)Mathf.Floor(i * clusterRatio);
-                var massAlpha = Mathf.Pow(UnityEngine.Random.Range(0f, 1f), MassDistributionExp);
+
+                // Scale mass such that aggregate matches TotalMass
+                Particles[i].Mass *= massScalar;
+
+                // Calculate velocity
                 var velocityAlpha = Mathf.Pow(UnityEngine.Random.Range(0f, 1f), VelocityDistributionExp);
-
-                Particles[i].Mass = Mathf.Lerp((float)MinMass, (float)MaxMass, massAlpha);
-                Particles[i].Entropy = UnityEngine.Random.Range(0f, 1f);
-
-                Vector3 linearVelocity;
-                Vector3 discVelocity;
-                Vector3 direction;
-
+                Vector3 linearVelocity, discVelocity, direction;
+  
                 switch(InitialisationShape)
                 {
                     case InitShape.Sphere:
                         direction = UnityEngine.Random.onUnitSphere;
                         linearVelocity = direction * velocityAlpha;
                         discVelocity = Vector3.Cross(direction, Vector3.up) * velocityAlpha;
-
-                        Particles[i].Position =
-                            origin +
-                            clusterOrigins[clusterIdx] +
-                            direction * (float)DistributionScaleMax;
-
-                        Particles[i].Velocity =
-                            linearVelocity * (float)SimulationLinearVelocity +
-                            discVelocity * (float)SimulationDiscVelocity;
                         break;
 
                     case InitShape.AccretionDisc:
@@ -302,17 +270,21 @@ namespace UniverseSimulation
 
                         linearVelocity = Quaternion.Euler(0f, 90f, 0f) * direction * velocityAlpha;
                         discVelocity = Vector3.Cross(direction, Vector3.up) * velocityAlpha;
+                        break;
 
-                        Particles[i].Position =
-                            origin +
-                            clusterOrigins[clusterIdx] +
-                            direction * UnityEngine.Random.Range((float)DistributionScaleMin, (float)DistributionScaleMax);
-
-                        Particles[i].Velocity =
-                            linearVelocity * (float)SimulationLinearVelocity +
-                            discVelocity * (float)SimulationDiscVelocity;
+                    default:
+                        linearVelocity = discVelocity = direction = Vector3.zero;
                         break;
                 }
+
+                Particles[i].Position =
+                    origin +
+                    clusterOrigins[clusterIdx] +
+                    direction * UnityEngine.Random.Range(DistributionInnerDiameter.GetScaled(), DistributionOuterDiameter.GetScaled());
+
+                Particles[i].Velocity =
+                    linearVelocity * SimulationLinearVelocity.GetScaled() +
+                    discVelocity * SimulationDiscVelocity.GetScaled();
             }
         }
         #endregion

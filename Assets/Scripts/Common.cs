@@ -10,6 +10,7 @@ namespace UniverseSimulation
         public const string k_KeywordBuildPoints = "BUILD_POINTS";
         public const string k_KeywordBuildLines = "BUILD_LINES";
         public const string k_KeywordBuildTetrahedrons = "BUILD_TETRAHEDRONS";
+        public const string k_KeywordDistanceFunction = "DISTANCE_FUNC";
 
         public const string k_ComputeKernalName = "CSMain";
         public const string k_ShaderNameParticle = "UniverseSimulation/DrawParticles";
@@ -20,7 +21,7 @@ namespace UniverseSimulation
         public const string k_ShaderPropParticleBufferRead = "_ParticleBufferRead";
         public const string k_ShaderPropParticleBufferWrite = "_ParticleBufferWrite";
         public const string k_ShaderPropG = "_G";
-        public const string k_ShaderPropMaxMass = "_MaxMass";
+        public const string k_ShaderPropAverageMass = "_AvgMass";
         public const string k_ShaderPropDistanceSoftening = "_DistanceSoftening";
         public const string k_ShaderPropDistanceCoeff = "_DistanceCoeff";
         public const string k_ShaderPropVelocityDecay = "_VelocityDecay";
@@ -33,6 +34,7 @@ namespace UniverseSimulation
         public const string k_ShaderPropActorBuffer = "_ActorBuffer";
         public const string k_ShaderPropTrailLength = "_TrailLength";
         public const string k_ShaderPropActorCount = "_ActorCount";
+        public const string k_ShaderPropUnitConversion = "_UnitConversion";
 
         public const string k_MaterialPropColour = "_Colour";
         public const string k_MaterialPropAmbient = "_Ambient";
@@ -48,15 +50,35 @@ namespace UniverseSimulation
         public const string k_MaterialPropLightColour = "_LightColour";
         public const string k_MaterialPropGeometryBuffer = "_GeometryBuffer";
 
+        public const MeasurementUnits k_StandardSpeedUnit = MeasurementUnits.Speed_KilometresPerSecond;
+        public const MeasurementUnits k_StandardDistanceUnit = MeasurementUnits.Distance_Kilometres;
+        public const MeasurementUnits k_StandardMassUnit = MeasurementUnits.Mass_MetricTonnes;
+        public const MeasurementUnits k_StandardForceUnit = MeasurementUnits.Force_Newtons;
+
         public static Shader ParticleShader
         {
             get { return Shader.Find(k_ShaderNameParticle); }
             set {}
         }
 
-        static Common()
+        public static T UpdateFixedQueue<T>(int limit, T value, ref Queue<T> queue)
         {
-            // ...
+            queue.Enqueue(value);
+
+            if (queue.Count > limit)
+                queue.Dequeue();
+            
+            dynamic valueOut = default(T);
+            if (queue.Count > 0)
+            {
+                // Average queue
+                foreach (T t in queue)
+                    valueOut += (dynamic)t;
+
+                valueOut /= queue.Count;
+            }
+
+            return (T)valueOut;
         }
     }
 }

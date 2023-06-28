@@ -15,16 +15,15 @@ namespace UniverseSimulation
         [Header("Behaviour type of UniverseActor.")]
         public ActorType ActorType = ActorType.Attractor;
 
-        [Header("Force of UniverseActor (unit: Newtons). Used for LinearForce type.")]
-        public double Force = 1f;
+        [Header("Force of UniverseActor. Used for LinearForce type.")]
+        public MeasurementContainer Force = new MeasurementContainer(3.52e16, MeasurementUnits.Force_Meganewtons);
 
-        [Header("Mass of UniverseActor (unit: Kilograms). Used for Attractor and Repeller types.")]
-        public double Mass = 1f;
+        [Header("Mass of UniverseActor. Used for Attractor and Repeller types.")]
+        public MeasurementContainer Mass = new MeasurementContainer(1, MeasurementUnits.Mass_SolarMasses);
         #endregion
 
         #region PRIVATE VARIABLES
         private static Dictionary<UniverseActor, ActorData> s_ActorDataDict = new Dictionary<UniverseActor, ActorData>();
-        private static double s_SimulationUnitScale;
 
         // A hard limit on the number of supported UniverseActors
         private const int k_ActorCountLimit = 4;
@@ -53,16 +52,17 @@ namespace UniverseSimulation
 
         private void OnEnable()
         {
-            var force = (float)(Force * s_SimulationUnitScale);
-            var mass = (float)(Mass * s_SimulationUnitScale);
+            var force = Force.GetScaled();
+            var mass = Mass.GetScaled();
 
+            var forceVector = (ActorType == ActorType.LinearForce) ? transform.forward * force : Vector3.zero;
             mass = (ActorType == ActorType.Attractor || ActorType == ActorType.Repeller) ? mass : 0f;
             mass *= (ActorType == ActorType.Repeller) ? -1f : 1f;
 
             var data = new ActorData()
             {
                 Position = transform.position,
-                Force = (ActorType == ActorType.LinearForce) ? transform.forward * force : Vector3.zero,
+                Force = forceVector,
                 Mass = mass,
             };
 
@@ -97,13 +97,6 @@ namespace UniverseSimulation
                 Gizmos.DrawSphere(transform.position, 5f);
                 Gizmos.DrawRay(transform.position, transform.forward * 50f);
             }
-        }
-        #endregion
-
-        #region GENERAL
-        public static void SetScale(double scale)
-        {
-            s_SimulationUnitScale = scale;
         }
         #endregion
     }

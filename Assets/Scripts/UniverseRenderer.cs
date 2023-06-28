@@ -16,11 +16,11 @@ namespace UniverseSimulation
         [Tooltip("Whether to show diagnostics.")]
         public bool Diagnostics = false;
         [Tooltip("Seed for pseudorandomness.")]
-        public int Seed = 12;
+        public int Seed = -99;
         [Tooltip("Simulation speed coefficient.")]
         public float SimulationSpeed = 1f;
         [Tooltip("Unit coefficient. Enables extreme number representation within float32's.")]
-        public double SimulationUnitScale = 1;
+        public double SimulationUnitScale = 0.1;
         [Tooltip("ParticleCollections to use in simulation.")]
         public ParticleCollection[] ParticleCollections;
 
@@ -31,10 +31,10 @@ namespace UniverseSimulation
         public double GravitationalConstant = 6.674e-11;
         [Tooltip("Distance coefficient for particles in calculations.")]
         public float DistanceCoeff = 1f;
-        [Tooltip("Distance softening for particles in calculations.")]
-        public float DistanceSoftening = 0.1f;
         [Tooltip("Velocity decay for particles in calculations.")]
-        public float VelocityDecay = 0.001f;
+        public float VelocityDecay = 0.00001f;
+        [Tooltip("The distance exponent used in Newton's equation. Quadratic resembles real behaviour (inverse-square law).")]
+        public DistanceFunction DistanceFunction = DistanceFunction.Quadratic;
 
         [Space]
         [Header("Rendering")]
@@ -44,7 +44,7 @@ namespace UniverseSimulation
         [Tooltip("Camera to render from (must have CameraController component).")]
         public CameraController TargetCameraController;
         [Tooltip("Proportion of particles to sample on CPU (used for camera tracking and diagnostics).")]
-        public float SampleRatio = 0.05f;
+        public float SampleRatio = 0.02f;
         #endregion
 
         #region PRIVATE VARIABLES
@@ -85,10 +85,14 @@ namespace UniverseSimulation
         #endregion
 
         #region MONOBEHAVIOUR
+        private void Awake()
+        {
+            MeasurementContainer.SetGlobalScalar(SimulationUnitScale);
+        }
+
         private void Start()
         {
             UnityEngine.Random.InitState(Seed);
-            ScalePhysicalQuantities();
 
             m_TargetCamera = TargetCameraController.GetComponent<Camera>();
             var directionalLights = FindObjectsOfType<Light>();
@@ -241,13 +245,6 @@ namespace UniverseSimulation
         #endregion
 
         #region GENERAL
-        private void ScalePhysicalQuantities()
-        {
-            GravitationalConstant *= SimulationUnitScale;
-            UniverseActor.SetScale(SimulationUnitScale);
-            ParticleCollection.SetScale(SimulationUnitScale);
-        }
-
         private void PingPong()
         {
             m_ReadIdx = (m_ReadIdx + 1) % 2;
@@ -291,24 +288,36 @@ namespace UniverseSimulation
 
             // Universal properties
             ComputeShader.SetFloat(Common.k_ShaderPropG, (float)GravitationalConstant);
-            ComputeShader.SetFloat(Common.k_ShaderPropDistanceSoftening, DistanceSoftening);
             ComputeShader.SetFloat(Common.k_ShaderPropDistanceCoeff, DistanceCoeff);
             ComputeShader.SetFloat(Common.k_ShaderPropVelocityDecay, 1f - VelocityDecay);
             ComputeShader.SetBuffer(m_KernelIdx, Common.k_ShaderPropActorBuffer, m_ActorBuffer);
+
+            foreach (int value in Enum.GetValues(typeof(DistanceFunction)))
+            {
+                var keyword = Common.k_KeywordDistanceFunction + "_" + value.ToString();
+                var setActive = (int)DistanceFunction == value;
+
+                if (setActive)
+                    ComputeShader.EnableKeyword(keyword);
+                else
+                    ComputeShader.DisableKeyword(keyword);
+            }
         }
 
         private void SetComputeShaderProperties(ParticleCollection collection)
         {
             ComputeShader.SetFloat(Common.k_ShaderPropTime, Time.time);
-            ComputeShader.SetFloat(Common.k_ShaderPropTimeStep, Time.deltaTime * SimulationSpeed);
+            ComputeShader.SetFloat(Common.k_ShaderPropTimeStep, SimulationSpeed);
             ComputeShader.SetMatrix(Common.k_ShaderPropVPMatrix, m_TargetCamera.projectionMatrix * m_TargetCamera.worldToCameraMatrix);
 
             ComputeShader.SetBuffer(m_KernelIdx, Common.k_ShaderPropGeometryBuffer, collection.GeometryBuffer);
             ComputeShader.SetBuffer(m_KernelIdx, Common.k_ShaderPropDrawCallArgsBuffer, collection.DrawCallArgsBuffer);
 
+            ComputeShader.SetVector(Common.k_ShaderPropUnitConversion, MeasurementContainer.GetUnitConversionVector());
+
             ComputeShader.SetVector(Common.k_ShaderPropColourA, collection.ColourA);
             ComputeShader.SetVector(Common.k_ShaderPropColourB, collection.ColourB);
-            ComputeShader.SetFloat(Common.k_ShaderPropMaxMass, (float)collection.MaxMass);
+            ComputeShader.SetFloat(Common.k_ShaderPropAverageMass, collection.TotalMass.GetScaled() / (float)collection.InstanceCount);
             ComputeShader.SetInt(Common.k_ShaderPropInstanceCount, collection.InstanceCount);
             ComputeShader.SetInt(Common.k_ShaderPropStartPosition, collection.StartPosition);
 
