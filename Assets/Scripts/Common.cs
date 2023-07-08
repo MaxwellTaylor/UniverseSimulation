@@ -11,6 +11,7 @@ namespace UniverseSimulation
         public const string k_KeywordBuildLines = "BUILD_LINES";
         public const string k_KeywordBuildTetrahedrons = "BUILD_TETRAHEDRONS";
         public const string k_KeywordDistanceFunction = "DISTANCE_FUNC";
+        public const string k_KeywordCollisionDetection = "COLLISION_DETECTION";
 
         public const string k_ComputeKernalName = "CSMain";
         public const string k_ShaderNameParticle = "UniverseSimulation/DrawParticles";
@@ -35,6 +36,7 @@ namespace UniverseSimulation
         public const string k_ShaderPropTrailLength = "_TrailLength";
         public const string k_ShaderPropActorCount = "_ActorCount";
         public const string k_ShaderPropUnitConversion = "_UnitConversion";
+        public const string k_ShaderPropParticleRadius = "_ParticleRadius";
 
         public const string k_MaterialPropColour = "_Colour";
         public const string k_MaterialPropAmbient = "_Ambient";
@@ -53,7 +55,7 @@ namespace UniverseSimulation
         public const MeasurementUnits k_StandardSpeedUnit = MeasurementUnits.Speed_KilometresPerSecond;
         public const MeasurementUnits k_StandardDistanceUnit = MeasurementUnits.Distance_Kilometres;
         public const MeasurementUnits k_StandardMassUnit = MeasurementUnits.Mass_MetricTonnes;
-        public const MeasurementUnits k_StandardForceUnit = MeasurementUnits.Force_Newtons;
+        public const MeasurementUnits k_StandardForceUnit = MeasurementUnits.Force_Kilonewtons;
 
         public static Shader ParticleShader
         {

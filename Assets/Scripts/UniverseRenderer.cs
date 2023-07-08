@@ -11,6 +11,9 @@ namespace UniverseSimulation
     public class UniverseRenderer : MonoBehaviour
     {
         #region PUBLIC VARIABLES
+        public delegate void OnRendererInit();
+        public static OnRendererInit Delegate_OnRendererInit = null;
+
         [Header("Simulation Settings")]
 
         [Tooltip("Whether to show diagnostics.")]
@@ -49,6 +52,7 @@ namespace UniverseSimulation
 
         #region PRIVATE VARIABLES
         private bool m_IsInitialised = false;
+        private bool m_ScaleIsSet = false;
         private int m_KernelIdx = -1;
         private int m_AggregateInstanceCount;
 
@@ -59,6 +63,7 @@ namespace UniverseSimulation
         private Light m_DirectionalLight;
         private ComputeBuffer m_ActorBuffer;
         private ComputeBuffer[] m_ParticleBuffers;
+        private UniverseActor[] m_Actors;
 
         // ParticleData asynchronously read back from GPU
         private static Unity.Collections.NativeArray<ParticleData> s_ParticleDataReadback;
@@ -87,7 +92,12 @@ namespace UniverseSimulation
         #region MONOBEHAVIOUR
         private void Awake()
         {
-            MeasurementContainer.SetGlobalScalar(SimulationUnitScale);
+            SetScale(false);
+        }
+
+        private void OnValidate()
+        {
+            SetScale(false);
         }
 
         private void Start()
@@ -122,6 +132,9 @@ namespace UniverseSimulation
             UniverseActor.Delegate_OnDictUpdate += OnActorsUpdated;
             OnActorsUpdated();
             AsyncGPUReadback.Request(ParticleBufferRead, OnAsyncGPUReadback);
+
+            if (Delegate_OnRendererInit != null)
+                Delegate_OnRendererInit.Invoke();
         }
 
         private void Update()
@@ -143,6 +156,9 @@ namespace UniverseSimulation
 
         private void OnDestroy()
         {
+            if (!m_IsInitialised)
+                return;
+
             m_IsInitialised = false;
             m_ActorBuffer.Release();
 
@@ -155,6 +171,26 @@ namespace UniverseSimulation
 
             Camera.onPostRender -= OnPostRenderCallback;
             UniverseActor.Delegate_OnDictUpdate -= OnActorsUpdated;
+        }
+
+        private void OnDrawGizmos()
+        {
+            var r = 0f;
+            SetScale(true);
+
+            Gizmos.color = Color.grey;
+            foreach (var collection in ParticleCollections)
+            {
+                r = collection.DistributionOuterDiameter.GetScaled();
+                Gizmos.DrawWireSphere(transform.position, r);
+            }
+
+            Gizmos.color = Color.green;
+            foreach (var actor in UniverseActor.ActorDataDict.Keys)
+            {
+                r = actor.Radius.GetScaled();
+                Gizmos.DrawWireSphere(transform.position, r);
+            }
         }
         #endregion
 
@@ -245,6 +281,15 @@ namespace UniverseSimulation
         #endregion
 
         #region GENERAL
+        private void SetScale(bool doCheck)
+        {
+            if (doCheck && m_ScaleIsSet)
+                return;
+
+            MeasurementContainer.SetGlobalScalar(SimulationUnitScale);
+            m_ScaleIsSet = true;
+        }
+
         private void PingPong()
         {
             m_ReadIdx = (m_ReadIdx + 1) % 2;
@@ -261,7 +306,7 @@ namespace UniverseSimulation
 
         private void SetupBuffers()
         {
-            m_ActorBuffer = new ComputeBuffer(UniverseActor.Limit, 7*4, ComputeBufferType.Structured);
+            m_ActorBuffer = new ComputeBuffer(UniverseActor.Limit, 8*4, ComputeBufferType.Structured);
 
             m_ParticleBuffers = new ComputeBuffer[]
             {
@@ -318,6 +363,7 @@ namespace UniverseSimulation
             ComputeShader.SetVector(Common.k_ShaderPropColourA, collection.ColourA);
             ComputeShader.SetVector(Common.k_ShaderPropColourB, collection.ColourB);
             ComputeShader.SetFloat(Common.k_ShaderPropAverageMass, collection.TotalMass.GetScaled() / (float)collection.InstanceCount);
+            ComputeShader.SetFloat(Common.k_ShaderPropParticleRadius, collection.ParticleRadius.GetScaled());
             ComputeShader.SetInt(Common.k_ShaderPropInstanceCount, collection.InstanceCount);
             ComputeShader.SetInt(Common.k_ShaderPropStartPosition, collection.StartPosition);
 
@@ -327,10 +373,10 @@ namespace UniverseSimulation
 
         private static void SetGlobalKeywords(ParticleCollection collection)
         {
-            for (var i = 0; i < collection.KeywordsDisable.Length; i++)
+            for (var i = 0; i < collection.KeywordsDisable.Count; i++)
                 Shader.DisableKeyword(collection.KeywordsDisable[i]);
 
-            for (var i = 0; i < collection.KeywordsEnable.Length; i++)
+            for (var i = 0; i < collection.KeywordsEnable.Count; i++)
                 Shader.EnableKeyword(collection.KeywordsEnable[i]);
         }
         #endregion

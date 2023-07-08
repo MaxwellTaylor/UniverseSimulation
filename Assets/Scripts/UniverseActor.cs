@@ -6,6 +6,7 @@ using System;
 
 namespace UniverseSimulation
 {
+    [ExecuteInEditMode]
     public class UniverseActor : MonoBehaviour
     {
         #region PUBLIC VARIABLES
@@ -20,6 +21,9 @@ namespace UniverseSimulation
 
         [Header("Mass of UniverseActor. Used for Attractor and Repeller types.")]
         public MeasurementContainer Mass = new MeasurementContainer(1, MeasurementUnits.Mass_SolarMasses);
+
+        [Header("Radius of UniverseActor. Used by collision detection.")]
+        public MeasurementContainer Radius = new MeasurementContainer(1, MeasurementUnits.Distance_Kilometres);
         #endregion
 
         #region PRIVATE VARIABLES
@@ -27,6 +31,8 @@ namespace UniverseSimulation
 
         // A hard limit on the number of supported UniverseActors
         private const int k_ActorCountLimit = 4;
+
+        private ActorData m_Data;
         #endregion
 
         #region PROPERTIES
@@ -44,13 +50,20 @@ namespace UniverseSimulation
         #endregion
 
         #region MONOBEHAVIOUR
-        private void OnValidate()
+        private void OnEnable()
         {
-            if (Delegate_OnDictUpdate != null)
-                Delegate_OnDictUpdate.Invoke();
+            Init();
+            DictUpdate(true);
         }
 
-        private void OnEnable()
+        private void OnDisable()
+        {
+            DictUpdate(false);
+        }
+        #endregion
+
+        #region GENERAL
+        private void Init()
         {
             var force = Force.GetScaled();
             var mass = Mass.GetScaled();
@@ -59,44 +72,44 @@ namespace UniverseSimulation
             mass = (ActorType == ActorType.Attractor || ActorType == ActorType.Repeller) ? mass : 0f;
             mass *= (ActorType == ActorType.Repeller) ? -1f : 1f;
 
-            var data = new ActorData()
+            m_Data = new ActorData()
             {
                 Position = transform.position,
                 Force = forceVector,
                 Mass = mass,
+                Radius = Radius.GetScaled(),
             };
-
-            if (!s_ActorDataDict.ContainsKey(this))
-            {
-                if (s_ActorDataDict.Count >= k_ActorCountLimit)
-                    Debug.LogWarning("UniverseActor couldn't be registered as the hard limit has been reached!", this);
-                else
-                    s_ActorDataDict.Add(this, data);
-
-                if (Delegate_OnDictUpdate != null)
-                    Delegate_OnDictUpdate.Invoke();
-            }
         }
 
-        private void OnDisable()
+        private void DictUpdate(bool enable)
         {
-            if (s_ActorDataDict.ContainsKey(this))
-                s_ActorDataDict.Remove(this);
-        }
-
-        private void OnDrawGizmosSelected()
-        {
-            Gizmos.color = new Color(0f, 1f, 0f, 0.5f);
-
-            if (ActorType == ActorType.Attractor || ActorType == ActorType.Repeller)
+            bool changed = false;
+            if (enable)
             {
-                Gizmos.DrawSphere(transform.position, 25f);
+                if (!s_ActorDataDict.ContainsKey(this))
+                {
+                    if (s_ActorDataDict.Count >= k_ActorCountLimit)
+                    {
+                        Debug.LogWarning("UniverseActor couldn't be registered as the hard limit has been reached!", this);
+                    }
+                    else
+                    {
+                        s_ActorDataDict.Add(this, m_Data);
+                        changed = true;
+                    }
+                }
             }
-            else if (ActorType == ActorType.LinearForce)
+            else
             {
-                Gizmos.DrawSphere(transform.position, 5f);
-                Gizmos.DrawRay(transform.position, transform.forward * 50f);
+                if (s_ActorDataDict.ContainsKey(this))
+                {
+                    s_ActorDataDict.Remove(this);
+                    changed = true;
+                }
             }
+
+            if (changed && Delegate_OnDictUpdate != null)
+                Delegate_OnDictUpdate.Invoke();
         }
         #endregion
     }

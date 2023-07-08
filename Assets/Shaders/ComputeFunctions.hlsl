@@ -1,11 +1,43 @@
 #ifndef __COMPUTE_HELPER_FUNCS__
 #define __COMPUTE_HELPER_FUNCS__
 
-    float3 SafeNormalise(float3 vec, float r2)
+    float3 SafeNormalise(float3 vec, float len)
     {
         // The intrinsic normalize() function seems to return NaN's
-        float len = sqrt(r2);
         return vec / max(len, EPSILON);
+    }
+
+    bool SphereSphereCollisionTest(ParticleData data, ParticleData dataOther, float otherRadius)
+    {
+        float3 toOther = (dataOther.Position - data.Position) * _DistanceCoeff;
+
+        float r2 = dot(toOther, toOther) + EPSILON;
+        float ra2 = _ParticleRadius + otherRadius;
+
+        bool test = r2 < (ra2*ra2);
+        return test;
+    }
+
+    void SphereSphereMomentumExchange(ParticleData data, ParticleData dataOther, float otherRadius, inout float3 collisionOffset, inout float3 collisionAcceleration)
+    {
+        float3 normal = (data.Position - dataOther.Position);
+
+        float r2 = dot(normal, normal) + EPSILON;
+        float len = sqrt(r2);
+        normal = SafeNormalise(normal, len);
+
+        float3 deltaVelocity = dataOther.Velocity - data.Velocity;
+        float massRatio = 1.0 / ((data.Mass / dataOther.Mass) + 1);
+        float massTotal = data.Mass + dataOther.Mass;
+
+        float radii = _ParticleRadius + otherRadius;
+        float margin = _ParticleRadius * 0.1;
+
+        float3 relativeVelocity = data.Velocity - dataOther.Velocity;
+        float vDotN = dot(relativeVelocity, -normal) / 2.0;
+
+        collisionAcceleration += vDotN * massRatio * normal;
+        collisionOffset += (radii - len + margin) * normal;
     }
 
     float3 Newton(float3 direction, float m1m2, float r2)
@@ -25,7 +57,8 @@
         float m1m2 = data.Mass * dataOther.Mass;
 
         float r2 = dot(toOther, toOther) + EPSILON;
-        toOther = SafeNormalise(toOther, r2);
+        float len = sqrt(r2);
+        toOther = SafeNormalise(toOther, len);
 
         force += Newton(toOther, m1m2, r2);
     }

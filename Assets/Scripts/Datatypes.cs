@@ -19,6 +19,7 @@ namespace UniverseSimulation
         public Vector3 Position;
         public Vector3 Force;
         public float Mass;
+        public float Radius;
     }
 
     [Serializable]
@@ -27,45 +28,44 @@ namespace UniverseSimulation
         public double Value;
         public MeasurementUnits Unit;
 
-        private static double s_Scalar;
+        private static double s_Scalar = 1.0;
         private static MeasurementUnits s_SpeedDefault = Common.k_StandardSpeedUnit;
         private static MeasurementUnits s_DistanceDefault = Common.k_StandardDistanceUnit;
         private static MeasurementUnits s_MassDefault = Common.k_StandardMassUnit;
         private static MeasurementUnits s_ForceDefault = Common.k_StandardForceUnit;
 
-        private Dictionary<MeasurementUnits, double> m_UnitConversionDict;
+        private static List<MeasurementContainer> s_MeasurementContainerList = new List<MeasurementContainer>();
+        private static Dictionary<MeasurementUnits, double> s_UnitConversionDict = new Dictionary<MeasurementUnits, double>()
+        {
+            // Speed
+            { MeasurementUnits.Speed_MetresPerSecond,        1 },
+            { MeasurementUnits.Speed_KilometresPerHour,      3.6 },
+            { MeasurementUnits.Speed_KilometresPerSecond,    0.001 },
+
+            // Distance
+            { MeasurementUnits.Distance_Metres,              1 },
+            { MeasurementUnits.Distance_Kilometres,          0.001 },
+            { MeasurementUnits.Distance_AstronomicalUnits,   6.68459e-12 },
+            { MeasurementUnits.Distance_Lightyears,          1.057e-16 },
+            { MeasurementUnits.Distance_Parsecs,             3.24078e-17 },
+
+            // Mass
+            { MeasurementUnits.Mass_Kilograms,               1 },
+            { MeasurementUnits.Mass_MetricTonnes,            0.001 },
+            { MeasurementUnits.Mass_SolarMasses,             5.0279e-31 },
+
+            // Force
+            { MeasurementUnits.Force_Newtons,                1 },
+            { MeasurementUnits.Force_Kilonewtons,            0.001 },
+            { MeasurementUnits.Force_Meganewtons,            1e-6 },
+        };
 
         public MeasurementContainer(double value, MeasurementUnits unit)
         {
             Value = value;
             Unit = unit;
 
-            s_Scalar = 1.0;
-
-            m_UnitConversionDict = new Dictionary<MeasurementUnits, double>()
-            {
-                // Speed
-                { MeasurementUnits.Speed_MetresPerSecond,        1 },
-                { MeasurementUnits.Speed_KilometresPerHour,      3.6 },
-                { MeasurementUnits.Speed_KilometresPerSecond,    0.001 },
-
-                // Distance
-                { MeasurementUnits.Distance_Metres,              1 },
-                { MeasurementUnits.Distance_Kilometres,          0.001 },
-                { MeasurementUnits.Distance_AstronomicalUnits,   6.68459e-12 },
-                { MeasurementUnits.Distance_Lightyears,          1.057e-16 },
-                { MeasurementUnits.Distance_Parsecs,             3.24078e-17 },
-
-                // Mass
-                { MeasurementUnits.Mass_Kilograms,               1 },
-                { MeasurementUnits.Mass_MetricTonnes,            0.001 },
-                { MeasurementUnits.Mass_SolarMasses,             5.0279e-31 },
-
-                // Force
-                { MeasurementUnits.Force_Newtons,                1 },
-                { MeasurementUnits.Force_Kilonewtons,            0.001 },
-                { MeasurementUnits.Force_Meganewtons,            1e-6 },
-            };
+            s_MeasurementContainerList.Add(this);
         }
 
         public static void SetGlobalScalar(double scale)
@@ -93,16 +93,22 @@ namespace UniverseSimulation
         {
             // These values should be the same,
             // but for now the system allows discontinuity between units passed to the compute shader
-            return new Vector4((float)s_SpeedDefault, (float)s_DistanceDefault, (float)s_MassDefault, (float)s_ForceDefault);
+            var converters = new Vector4(
+                (float)(s_UnitConversionDict[s_SpeedDefault] * s_Scalar),
+                (float)(s_UnitConversionDict[s_DistanceDefault] * s_Scalar),
+                (float)(s_UnitConversionDict[s_MassDefault] * s_Scalar),
+                (float)(s_UnitConversionDict[s_ForceDefault] * s_Scalar));
+                
+            return converters;
         }
 
         public double GetDouble(MeasurementUnits newUnit)
         {
             // Convert to lowest unit
-            var baseUnitValue = Value * (1.0 / m_UnitConversionDict[Unit]);
+            var baseUnitValue = Value * (1.0 / s_UnitConversionDict[Unit]);
 
             // Convert to new unit
-            return baseUnitValue * m_UnitConversionDict[newUnit];
+            return baseUnitValue * s_UnitConversionDict[newUnit];
         }
 
         public float GetScaled()
@@ -136,13 +142,13 @@ namespace UniverseSimulation
         public float GetScaled(MeasurementUnits newUnit)
         {
             // Convert to base unit
-            var baseUnitValue = Value * (1.0 / m_UnitConversionDict[Unit]);
+            var baseUnitValue = Value * (1.0 / s_UnitConversionDict[Unit]);
 
             // Scale in base unit
             baseUnitValue *= s_Scalar;
 
             // Convert to new unit
-            return (float)(baseUnitValue * m_UnitConversionDict[newUnit]);
+            return (float)(baseUnitValue * s_UnitConversionDict[newUnit]);
         }
     }
     #endregion
@@ -204,6 +210,9 @@ namespace UniverseSimulation
 
     public enum ParticleCount
     {
+        Tiny_256 = 256,
+        Tiny_512 = 512,
+        Tiny_1024 = 1024,
         Small_2048 = 2048,
         Small_4096 = 4096,
         Medium_8192 = 8192,

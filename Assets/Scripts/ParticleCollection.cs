@@ -13,15 +13,16 @@ namespace UniverseSimulation
     {
         #region PUBLIC VARIABLES
         [Header("Behaviour")]
-
+        [Tooltip("Whether to simulate collision detection.")]
+        public bool CollisionDetection = false;
         [Tooltip("Particle cluster initialisation shape.")]
         public InitShape InitialisationShape = InitShape.AccretionDisc;
         [Tooltip("Total number of particles in ParticleCollection.")]
-        public ParticleCount ParticleCount = ParticleCount.Large_32768;
+        public ParticleCount ParticleCount = ParticleCount.Large_65536;
         [Tooltip("Probability distribution of particle mass.")]
-        public float MassDistributionExp = 1f;
+        public float MassDistributionCurve = 1f;
         [Tooltip("Probability distribution of particle velocity.")]
-        public float VelocityDistributionExp = 1f;
+        public float VelocityDistributionCurve = 1f;
         [Tooltip("Number of particle clusters.")]
         public int ClusterCount = 1;
 
@@ -32,6 +33,8 @@ namespace UniverseSimulation
         public MeasurementContainer TotalMass = new MeasurementContainer(1.5e19, MeasurementUnits.Mass_Kilograms);
         [Tooltip("Maximum radius from origin of particle clusters.")]
         public MeasurementContainer ClusterMaxRadius = new MeasurementContainer(0, MeasurementUnits.Distance_Kilometres);
+        [Tooltip("Particle radius used by collision detection and mesh rendering.")]
+        public MeasurementContainer ParticleRadius = new MeasurementContainer(500, MeasurementUnits.Distance_Kilometres);
         [Tooltip("Inner diameter of particle clusters.")]
         public MeasurementContainer DistributionInnerDiameter = new MeasurementContainer(149000, MeasurementUnits.Distance_Kilometres);
         [Tooltip("Outer diameter of particle clusters.")]
@@ -45,7 +48,7 @@ namespace UniverseSimulation
         [Header("Rendering")]
 
         [Tooltip("Topology type to render.")]
-        public RenderTopology RenderTopology = RenderTopology.Points;
+        public RenderTopology RenderTopology = RenderTopology.Tetrahedrons;
         [Tooltip("Colour variant for particles.")]
         [ColorUsage(false, true)] public Color ColourA = Color.white;
         [Tooltip("Colour variant for particles.")]
@@ -67,8 +70,8 @@ namespace UniverseSimulation
 
         [NonSerialized] public int VerticesPerInstance;
         [NonSerialized] public int GeometryBufferStride;
-        [NonSerialized] public string[] KeywordsEnable;
-        [NonSerialized] public string[] KeywordsDisable;
+        [NonSerialized] public List<string> KeywordsEnable = new List<string>();
+        [NonSerialized] public List<string> KeywordsDisable = new List<string>();
         [NonSerialized] public MeshTopology MeshTopology;
 
         [NonSerialized] public Material Material;
@@ -173,13 +176,20 @@ namespace UniverseSimulation
             // This defaults to enabled, but it's set here anyway for robustness
             Material.EnableKeyword(Common.k_KeywordUseGeometryData);
 
+            if (CollisionDetection)
+                KeywordsEnable.Add(Common.k_KeywordCollisionDetection);
+            else
+                KeywordsDisable.Add(Common.k_KeywordCollisionDetection);
+
             switch(RenderTopology)
             {
                 case RenderTopology.Points:
                     VerticesPerInstance = 1;
                     GeometryBufferStride = 24;
-                    KeywordsEnable = new string[] { Common.k_KeywordBuildPoints };
-                    KeywordsDisable = new string[] { Common.k_KeywordBuildLines, Common.k_KeywordBuildTetrahedrons };
+
+                    KeywordsEnable.Add(Common.k_KeywordBuildPoints);
+                    KeywordsDisable.Add(Common.k_KeywordBuildLines);
+                    KeywordsDisable.Add(Common.k_KeywordBuildTetrahedrons);
 
                     Material.SetFloat(Common.k_MaterialPropCullMode, (float)UnityEngine.Rendering.CullMode.Off);
                     Material.SetFloat(Common.k_MaterialPropBlendModeSrc, (float)UnityEngine.Rendering.BlendMode.One);
@@ -192,8 +202,10 @@ namespace UniverseSimulation
                 case RenderTopology.Lines:
                     VerticesPerInstance = 2;
                     GeometryBufferStride = 36;
-                    KeywordsEnable = new string[] { Common.k_KeywordBuildLines };
-                    KeywordsDisable = new string[] { Common.k_KeywordBuildPoints, Common.k_KeywordBuildTetrahedrons };
+
+                    KeywordsEnable.Add(Common.k_KeywordBuildLines);
+                    KeywordsDisable.Add(Common.k_KeywordBuildPoints);
+                    KeywordsDisable.Add(Common.k_KeywordBuildTetrahedrons);
 
                     Material.SetFloat(Common.k_MaterialPropCullMode, (float)UnityEngine.Rendering.CullMode.Off);
                     Material.SetFloat(Common.k_MaterialPropBlendModeSrc, (float)UnityEngine.Rendering.BlendMode.One);
@@ -206,8 +218,10 @@ namespace UniverseSimulation
                 case RenderTopology.Tetrahedrons:
                     VerticesPerInstance = 12;
                     GeometryBufferStride = 192;
-                    KeywordsEnable = new string[] { Common.k_KeywordBuildTetrahedrons };
-                    KeywordsDisable = new string[] { Common.k_KeywordBuildPoints, Common.k_KeywordBuildLines };
+
+                    KeywordsEnable.Add(Common.k_KeywordBuildTetrahedrons);
+                    KeywordsDisable.Add(Common.k_KeywordBuildPoints);
+                    KeywordsDisable.Add(Common.k_KeywordBuildLines);
 
                     Material.SetFloat(Common.k_MaterialPropCullMode, (float)UnityEngine.Rendering.CullMode.Back);
                     Material.SetFloat(Common.k_MaterialPropBlendModeSrc, (float)UnityEngine.Rendering.BlendMode.Zero);
@@ -239,7 +253,7 @@ namespace UniverseSimulation
                 // Entropy is useful for introducing randomised variation
                 Particles[i].Entropy = UnityEngine.Random.Range(0f, 1f);
 
-                var mass = Mathf.Pow(UnityEngine.Random.Range(float.Epsilon, 1f), MassDistributionExp);
+                var mass = Mathf.Pow(UnityEngine.Random.Range(float.Epsilon, 1f), MassDistributionCurve);
                 Particles[i].Mass = mass;
                 massTotalInit += mass;                
             }
@@ -253,7 +267,7 @@ namespace UniverseSimulation
                 Particles[i].Mass *= massScalar;
 
                 // Calculate velocity
-                var velocityAlpha = Mathf.Pow(UnityEngine.Random.Range(0f, 1f), VelocityDistributionExp);
+                var velocityAlpha = Mathf.Pow(UnityEngine.Random.Range(0f, 1f), VelocityDistributionCurve);
                 Vector3 linearVelocity, discVelocity, direction;
   
                 switch(InitialisationShape)

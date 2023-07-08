@@ -1,5 +1,6 @@
 #pragma kernel CSMain
 
+#pragma multi_compile __ COLLISION_DETECTION
 #pragma multi_compile BUILD_POINTS BUILD_LINES BUILD_TETRAHEDRONS
 #pragma multi_compile DISTANCE_FUNC_1 DISTANCE_FUNC_2 DISTANCE_FUNC_4 DISTANCE_FUNC_6 DISTANCE_FUNC_8
 
@@ -38,6 +39,7 @@ uint _ActorCount;
 float4 _ColourA;
 float4 _ColourB;
 
+float _ParticleRadius;
 float _DistanceCoeff;
 float _VelocityDecay;
 float _TrailLength;
@@ -79,6 +81,7 @@ struct ActorData
     float3 Position;
     float3 Force;
     float Mass;
+    float Radius;
 };
 
 struct DrawCallArgs
@@ -112,8 +115,11 @@ void ApplyForces(Input input, ParticleData data, uint idx)
     uint idxRead;
     uint idxShared;
 
-    // Force in Newtons
     float3 force = float3(0.0, 0.0, 0.0);
+    float3 collisionOffset = float3(0.0, 0.0, 0.0);
+    float3 collisionAcceleration = float3(0.0, 0.0, 0.0);
+
+    uint collisions = 0;
 
     //[unroll(N / THREAD_DIM.x)]
     for (uint i = start; i < finish; i += THREAD_DIM.x, tile++) 
@@ -131,6 +137,14 @@ void ApplyForces(Input input, ParticleData data, uint idx)
         {
             idxShared = j + THREAD_DIM.x * input.ThreadID.y;
             CalcGravitation(data, _SharedData[idxShared], /*inout*/ force);
+
+            #if defined(COLLISION_DETECTION)
+                if (SphereSphereCollisionTest(data, _SharedData[idxShared], _ParticleRadius))
+                {
+                    SphereSphereMomentumExchange(data, _SharedData[idxShared], _ParticleRadius, /*inout*/ collisionOffset, /*inout*/ collisionAcceleration);
+                    collisions++;
+                }
+            #endif
         }
 
         GroupMemoryBarrierWithGroupSync();
@@ -142,9 +156,18 @@ void ApplyForces(Input input, ParticleData data, uint idx)
         actor = (ParticleData)0;
         actor.Position = _ActorBuffer[k].Position;
         actor.Mass = _ActorBuffer[k].Mass;
+        actor.Velocity = 0.0;
 
         CalcGravitation(data, actor, /*inout*/ force);
         CalcInputForce(data, _ActorBuffer[k], /*inout*/ force);
+
+        #if defined(COLLISION_DETECTION)
+            if (SphereSphereCollisionTest(data, actor, _ActorBuffer[k].Radius))
+            {
+                SphereSphereMomentumExchange(data, actor, _ActorBuffer[k].Radius, /*inout*/ collisionOffset, /*inout*/ collisionAcceleration);
+                collisions++;
+            }
+        #endif
     }
 
     // With default behaviour,
@@ -155,11 +178,16 @@ void ApplyForces(Input input, ParticleData data, uint idx)
     // Outputs Kilometres/Second/Second
 
     // a = f/m
-    float3 acceleration = (force / data.Mass) * _TimeStep;
+    float3 forceAcceleration = (force / data.Mass) * _TimeStep;
 
-    data.Velocity = data.Velocity * _VelocityDecay + acceleration;
-    data.Position += data.Velocity;
-    
+    data.Velocity = (collisions > 0) ?
+        collisionAcceleration / (float)collisions :
+        data.Velocity * _VelocityDecay + forceAcceleration;
+
+    data.Position += (collisions > 0) ?
+        data.Velocity + collisionOffset :
+        data.Velocity;
+   
     _ParticleBufferWrite[_StartPosition + idx] = data;
 }
 
@@ -192,10 +220,10 @@ void BuildGeometry(ParticleData data)
         //     / | \
         //    '-.|.-'
 
-        float3 p0 = mul(rotMatrixXY, float3(-0.5, -0.217, -0.289)) * mass;
-        float3 p1 = mul(rotMatrixXY, float3(0.5, -0.217, -0.289)) * mass;
-        float3 p2 = mul(rotMatrixXY, float3(0.0, -0.217, 0.577)) * mass;
-        float3 p3 = mul(rotMatrixXY, float3(0.0, 0.650, 0.0)) * mass;
+        float3 p0 = mul(rotMatrixXY, float3(-0.5, -0.217, -0.289)) * _ParticleRadius;
+        float3 p1 = mul(rotMatrixXY, float3(0.5, -0.217, -0.289)) * _ParticleRadius;
+        float3 p2 = mul(rotMatrixXY, float3(0.0, -0.217, 0.577)) * _ParticleRadius;
+        float3 p3 = mul(rotMatrixXY, float3(0.0, 0.650, 0.0)) * _ParticleRadius;
 
         float3 n0 = mul(rotMatrixXY, float3(0.0, -1.0, 0.0));
         float3 n1 = mul(rotMatrixXY, float3(-0.822, 0.316, 0.474));
