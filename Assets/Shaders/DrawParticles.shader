@@ -105,12 +105,12 @@ Shader "UniverseSimulation/DrawParticles"
                     vertexColour = geo.Colour;
 
                     #if defined(BUILD_POINTS)
-                        int idx = vertexID;
+                        uint idx = vertexID;
                         o.size = _PointSize;
                     #elif defined(BUILD_LINES)
-                        int idx = vertexID % 2;
+                        uint idx = vertexID % 2;
                     #elif defined(BUILD_TETRAHEDRONS)
-                        int idx = vertexID % 12;
+                        uint idx = vertexID % 12;
                         o.normal = geo.Normals[idx / 3];                    
                     #endif
 
