@@ -34,7 +34,7 @@
         float margin = _ParticleRadius * 0.1;
 
         float3 relativeVelocity = data.Velocity - dataOther.Velocity;
-        float vDotN = dot(relativeVelocity, -normal) / 2.0;
+        float vDotN = dot(relativeVelocity, -normal);
 
         collisionAcceleration += vDotN * massRatio * normal;
         collisionOffset += (radii - len + margin) * normal;
