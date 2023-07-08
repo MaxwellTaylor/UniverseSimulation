@@ -9,9 +9,10 @@ namespace UniverseSimulation
     public class CameraGrid : MonoBehaviour
     {
         #region PUBLIC VARIABLES
-        public float Scale = 8192f;
-        public int Divisions = 128;
-        public float Height = 8000f;
+        public float Exposure = 0.2f;
+        public float Scale = 16384f;
+        public int Divisions = 64;
+        public float Height = -500f;
         #endregion
 
         #region PRIVATE VARIABLES
@@ -88,9 +89,9 @@ namespace UniverseSimulation
 
             m_Material.SetColor(Common.k_MaterialPropColour, Color.grey);
             m_Material.SetColor(Common.k_MaterialPropAmbient, Color.black);
-            m_Material.SetFloat(Common.k_MaterialPropExposure, 1f);
+            m_Material.SetFloat(Common.k_MaterialPropExposure, Exposure);
 
-            m_Material.SetFloat(Common.k_MaterialPropZTest, (float)UnityEngine.Rendering.CompareFunction.Always);
+            m_Material.SetFloat(Common.k_MaterialPropZTest, (float)UnityEngine.Rendering.CompareFunction.LessEqual);
             m_Material.SetFloat(Common.k_MaterialPropCullMode, (float)UnityEngine.Rendering.CullMode.Off);
             m_Material.SetFloat(Common.k_MaterialPropBlendModeSrc, (float)UnityEngine.Rendering.BlendMode.One);
             m_Material.SetFloat(Common.k_MaterialPropBlendModeDst, (float)UnityEngine.Rendering.BlendMode.One);
@@ -112,15 +113,9 @@ namespace UniverseSimulation
                 name = "Grid",
             };
 
-            // Lower grid
-            var positionLower = new Vector3(0f, -Height, 0f);
-            var matrixLower = Matrix4x4.TRS(positionLower, Quaternion.identity, Vector3.one);
-            m_CommandBuffer.DrawMesh(m_Mesh, matrixLower, m_Material, 0, 0, propertyBlock);
-
-            // Upper grid
-            var positionUpper = new Vector3(0f, Height, 0f);
-            var matrixUpper = Matrix4x4.TRS(positionUpper, Quaternion.identity, Vector3.one);
-            m_CommandBuffer.DrawMesh(m_Mesh, matrixUpper, m_Material, 0, 0, propertyBlock);
+            var position = new Vector3(0f, Height, 0f);
+            var matrix = Matrix4x4.TRS(position, Quaternion.identity, Vector3.one);
+            m_CommandBuffer.DrawMesh(m_Mesh, matrix, m_Material, 0, 0, propertyBlock);
 
             // Submit
             m_CommandBufferEvent = CameraEvent.AfterImageEffectsOpaque;

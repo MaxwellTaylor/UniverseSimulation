@@ -1,6 +1,7 @@
+using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
+using System;
 
 namespace UniverseSimulation
 {
@@ -8,10 +9,11 @@ namespace UniverseSimulation
     public class CameraController : MonoBehaviour
     {
         #region PUBLIC VARIABLES
-        public float OrbitSpeed = 5f;
+        public float OrbitSpeed = 1f;
         public float ZoomSpeed = 5f;
         public float MoveSpeed = 1f;
         public float LookAtSpeed = 0.2f;
+        public float CameraShake = 0.2f;
         #endregion
 
         #region PRIVATE VARIABLES
@@ -19,6 +21,7 @@ namespace UniverseSimulation
 
         private GameObject m_Pivot;
         private float m_InitialZoom;
+        private Vector3 m_PrevShake = Vector3.zero;
 
         private static Vector3 s_LookAtPosition = Vector3.zero;
         private static float s_Area = 0f;
@@ -45,6 +48,8 @@ namespace UniverseSimulation
 
         private void Update()
         {
+            UpdateCameraShake();
+
             UpdateLookAt();
             UpdatePositionAndZoom();
             UpdateOrbit();
@@ -54,34 +59,8 @@ namespace UniverseSimulation
         #region GENERAL
         public static void Push(Vector3 lookAtPosition, float area)
         {
-            s_LookAtQueue.Enqueue(lookAtPosition);
-            s_AreaQueue.Enqueue(area);
-
-            if (s_LookAtQueue.Count > k_QueueLimit)
-                s_LookAtQueue.Dequeue();
-
-            if (s_AreaQueue.Count > k_QueueLimit)
-                s_AreaQueue.Dequeue();
-
-            if (s_LookAtQueue.Count > 0)
-            {
-                // Average queue
-                s_LookAtPosition = Vector3.zero;
-                foreach (var position in s_LookAtQueue)
-                    s_LookAtPosition += position;
-
-                s_LookAtPosition /= s_LookAtQueue.Count;
-            }
-
-            if (s_AreaQueue.Count > 0)
-            {
-                // Average queue
-                s_Area = 0f;
-                foreach (var dist in s_AreaQueue)
-                    s_Area += dist;
-
-                s_Area /= s_AreaQueue.Count;
-            }
+            s_LookAtPosition = Common.UpdateFixedQueue<Vector3>(k_QueueLimit, lookAtPosition, ref s_LookAtQueue);
+            s_Area = Common.UpdateFixedQueue<float>(k_QueueLimit, area, ref s_AreaQueue);
         }
 
         private void UpdatePositionAndZoom()
@@ -116,6 +95,21 @@ namespace UniverseSimulation
             // This can be thought of as scaling
             lookAtRotation = Quaternion.Lerp(Quaternion.identity, lookAtRotation, LookAtSpeed * Time.deltaTime);
             transform.rotation *= lookAtRotation;
+            
+            // Force no Z-axis rotation
+            transform.rotation = Quaternion.Euler(transform.eulerAngles.x, transform.eulerAngles.y, 0f);
+        }
+
+        private void UpdateCameraShake()
+        {
+            if (CameraShake.Equals(0f))
+                return;
+
+            var shake = UnityEngine.Random.onUnitSphere * UnityEngine.Random.Range(0f, CameraShake);
+            shake = shake * 0.1f + m_PrevShake * 0.9f;
+
+            s_LookAtPosition += shake;
+            m_PrevShake = shake;
         }
 
         private void UpdateOrbit()
