@@ -23,6 +23,13 @@ namespace UniverseSimulation
     }
 
     [Serializable]
+    public struct ParticleCollectionPack
+    {
+        public ParticleCollection Collection;
+        public Transform Transform;
+    }
+
+    [Serializable]
     public struct MeasurementContainer
     {
         public double Value;
@@ -166,6 +173,12 @@ namespace UniverseSimulation
         Points,
         Lines,
         Tetrahedrons,
+    }
+
+    public enum BlendMode
+    {
+        Additive,
+        Solid,
     }
 
     public enum InitShape

@@ -49,6 +49,8 @@ namespace UniverseSimulation
 
         [Tooltip("Topology type to render.")]
         public RenderTopology RenderTopology = RenderTopology.Tetrahedrons;
+        [Tooltip("Blend mode to use.")]
+        public BlendMode BlendMode = BlendMode.Additive;
         [Tooltip("Colour variant for particles.")]
         [ColorUsage(false, true)] public Color ColourA = Color.white;
         [Tooltip("Colour variant for particles.")]
@@ -181,6 +183,19 @@ namespace UniverseSimulation
             else
                 KeywordsDisable.Add(Common.k_KeywordCollisionDetection);
 
+            switch(BlendMode)
+            {
+                case BlendMode.Additive:
+                    Material.SetFloat(Common.k_MaterialPropBlendModeSrc, (float)UnityEngine.Rendering.BlendMode.One);
+                    Material.SetFloat(Common.k_MaterialPropBlendModeDst, (float)UnityEngine.Rendering.BlendMode.One);
+                    break;
+
+                case BlendMode.Solid:
+                    Material.SetFloat(Common.k_MaterialPropBlendModeSrc, (float)UnityEngine.Rendering.BlendMode.Zero);
+                    Material.SetFloat(Common.k_MaterialPropBlendModeDst, (float)UnityEngine.Rendering.BlendMode.One);
+                    break;
+            }
+
             switch(RenderTopology)
             {
                 case RenderTopology.Points:
@@ -192,8 +207,6 @@ namespace UniverseSimulation
                     KeywordsDisable.Add(Common.k_KeywordBuildTetrahedrons);
 
                     Material.SetFloat(Common.k_MaterialPropCullMode, (float)UnityEngine.Rendering.CullMode.Off);
-                    Material.SetFloat(Common.k_MaterialPropBlendModeSrc, (float)UnityEngine.Rendering.BlendMode.One);
-                    Material.SetFloat(Common.k_MaterialPropBlendModeDst, (float)UnityEngine.Rendering.BlendMode.One);
                     Material.SetFloat(Common.k_MaterialPropZWrite, false ? 1f : 0f);
 
                     MeshTopology = MeshTopology.Points;
@@ -208,8 +221,6 @@ namespace UniverseSimulation
                     KeywordsDisable.Add(Common.k_KeywordBuildTetrahedrons);
 
                     Material.SetFloat(Common.k_MaterialPropCullMode, (float)UnityEngine.Rendering.CullMode.Off);
-                    Material.SetFloat(Common.k_MaterialPropBlendModeSrc, (float)UnityEngine.Rendering.BlendMode.One);
-                    Material.SetFloat(Common.k_MaterialPropBlendModeDst, (float)UnityEngine.Rendering.BlendMode.One);
                     Material.SetFloat(Common.k_MaterialPropZWrite, false ? 1f : 0f);
 
                     MeshTopology = MeshTopology.Lines;
@@ -224,8 +235,6 @@ namespace UniverseSimulation
                     KeywordsDisable.Add(Common.k_KeywordBuildLines);
 
                     Material.SetFloat(Common.k_MaterialPropCullMode, (float)UnityEngine.Rendering.CullMode.Back);
-                    Material.SetFloat(Common.k_MaterialPropBlendModeSrc, (float)UnityEngine.Rendering.BlendMode.Zero);
-                    Material.SetFloat(Common.k_MaterialPropBlendModeDst, (float)UnityEngine.Rendering.BlendMode.One);
                     Material.SetFloat(Common.k_MaterialPropZWrite, true ? 1f : 0f);
 
                     MeshTopology = MeshTopology.Triangles;

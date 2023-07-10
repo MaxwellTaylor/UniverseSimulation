@@ -25,7 +25,7 @@ namespace UniverseSimulation
         [Tooltip("Unit coefficient. Enables extreme number representation within float32's.")]
         public double SimulationUnitScale = 0.1;
         [Tooltip("ParticleCollections to use in simulation.")]
-        public ParticleCollection[] ParticleCollections;
+        public List<ParticleCollectionPack> ParticleCollections;
 
         [Space]
         [Header("Behaviour")]
@@ -97,6 +97,17 @@ namespace UniverseSimulation
 
         private void OnValidate()
         {
+            if (ParticleCollections == null || ParticleCollections.Count == 0)
+                Debug.LogWarning("No ParticleCollectionPacks found!");
+
+            foreach (var entry in ParticleCollections)
+            {
+                var collection = entry.Collection;
+
+                if (collection == null)
+                    Debug.LogWarning("Null ParticleCollection reference found!");
+            }
+
             SetScale(false);
         }
 
@@ -118,9 +129,15 @@ namespace UniverseSimulation
             }
 
             m_AggregateInstanceCount = 0;
-            foreach (var collection in ParticleCollections)
+            foreach(var entry in ParticleCollections)
             {
-                collection.Setup(m_AggregateInstanceCount, transform.position, m_DirectionalLight);
+                var collection = entry.Collection;
+                var position = entry.Transform != null ? entry.Transform.position : transform.position;
+
+                if (collection == null)
+                    continue;
+
+                collection.Setup(m_AggregateInstanceCount, position, m_DirectionalLight);
                 m_AggregateInstanceCount += collection.InstanceCount;
             }
 
@@ -144,8 +161,13 @@ namespace UniverseSimulation
                 
             PingPong();
 
-            foreach (var collection in ParticleCollections)
+            foreach (var entry in ParticleCollections)
             {
+                var collection = entry.Collection;
+
+                if (collection == null)
+                    continue;
+
                 SetGlobalKeywords(collection);
                 SetComputeShaderProperties(collection);
                 collection.PrepareForRender();
@@ -166,8 +188,13 @@ namespace UniverseSimulation
             ParticleBufferWrite.Release();
             m_ParticleBuffers = null;
 
-            foreach (var collection in ParticleCollections)
-                collection.Cleanup();
+            foreach (var entry in ParticleCollections)
+            {
+                var collection = entry.Collection;
+
+                if (collection != null)
+                    collection.Cleanup();
+            }
 
             Camera.onPostRender -= OnPostRenderCallback;
             UniverseActor.Delegate_OnDictUpdate -= OnActorsUpdated;
@@ -179,10 +206,16 @@ namespace UniverseSimulation
             SetScale(true);
 
             Gizmos.color = Color.grey;
-            foreach (var collection in ParticleCollections)
+            foreach (var entry in ParticleCollections)
             {
+                var collection = entry.Collection;
+                var position = entry.Transform != null ? entry.Transform.position : transform.position;
+
+                if (collection == null)
+                    continue;
+
                 r = collection.DistributionOuterDiameter.GetScaled();
-                Gizmos.DrawWireSphere(transform.position, r);
+                Gizmos.DrawWireSphere(position, r);
             }
 
             Gizmos.color = Color.green;
@@ -200,8 +233,13 @@ namespace UniverseSimulation
             if (cam != m_TargetCamera)
                 return;
 
-            foreach (var collection in ParticleCollections)
+            foreach (var entry in ParticleCollections)
             {
+                var collection = entry.Collection;
+
+                if (collection == null)
+                    continue;
+
                 // Render using Material's assigned GeometryBuffer
                 collection.Material.SetPass(0);
                 Graphics.DrawProceduralIndirectNow(collection.MeshTopology, collection.DrawCallArgsBuffer, 0);
@@ -317,8 +355,13 @@ namespace UniverseSimulation
             var aggregateParticles = new ParticleData[m_AggregateInstanceCount];
             int prevInstanceCount = 0;
 
-            foreach (var collection in ParticleCollections)
+            foreach (var entry in ParticleCollections)
             {
+                var collection = entry.Collection;
+
+                if (collection == null)
+                    continue;
+
                 Array.Copy(collection.Particles, 0, aggregateParticles, prevInstanceCount, collection.Particles.Length);
                 prevInstanceCount = collection.InstanceCount;
             }
